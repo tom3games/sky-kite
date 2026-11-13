@@ -1,0 +1,5 @@
+shots/
+node_modules
+.DS_Store
+art/log_*.txt
+art/

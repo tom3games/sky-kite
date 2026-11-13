@@ -1,0 +1,301 @@
+// SKY KITE の物理。DOM を触らない（node の bot でも同じ物を回す）。
+// 遊ぶ面は岩山の壁に沿った2次元（x=横, y=高さ, m）。見た目の3Dも当たりも course の同じ箱から作る。
+// 固定 60Hz × 4 分割。風は course のデータと時刻だけで決まる（乱数なし）。
+
+export const DT = 1 / 60
+export const SUB = 4
+export const K = {
+  g: 15,            // 重力（少し強めで手ざわりを締める）
+  r: 0.42,          // 体の当たりの半径
+  hand: 0.55,       // 糸を持つ手の高さ（体の中心から）
+  walk: 3.4, walkFly: 1.6, mu: 1.1,
+  drag: 0.016,      // 空気の抵抗（体）
+  Lmin: 3, Lmax: 32, reelIn: 4.5, reelOut: 6, launchL: 6,
+  win: 80 * Math.PI / 180,  // 凧が飛べる範囲（風下から左右に）
+  A1: 7.5,          // この見かけの風で、真ん中の引きが体重と同じ
+  Tcap: 3.4, stallA: 3.2,
+  stepUp: 0.62, abyss: -24,
+  vf: 0.5,          // 体の速さがどれだけ凧の見かけの風を減らすか（糸の伸びで半分）
+}
+
+const PI = Math.PI
+export const angDiff = (a, b) => { let d = a - b; while (d > PI) d -= 2 * PI; while (d < -PI) d += 2 * PI; return d }
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v
+const sstep = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t) }
+
+// 長方形の中で 1、縁 e で 0 へなめらかに落ちる重み
+export function rectW(z, x, y) {
+  const e = z.e ?? 1.5
+  if (x < z.x0 - e || x > z.x1 + e || y < z.y0 - e || y > z.y1 + e) return 0
+  return sstep(z.x0 - e, z.x0 + e * 0.2, x) * (1 - sstep(z.x1 - e * 0.2, z.x1 + e, x)) *
+         sstep(z.y0 - e, z.y0 + e * 0.2, y) * (1 - sstep(z.y1 - e * 0.2, z.y1 + e, y))
+}
+
+// 周期の合図: 0..1。period 秒ごとに phase から dur 秒だけ 1（立ち上がり rise 秒）
+export function pulse(t, period, phase, dur, rise = 0.35) {
+  let u = ((t - phase) % period + period) % period
+  if (u > dur + rise) return 0
+  if (u < rise) return sstep(0, rise, u)
+  if (u > dur) return 1 - sstep(dur, dur + rise, u)
+  return 1
+}
+// 向きが周期で入れ替わる（+1 ↔ -1）。入れ替わりは swap 秒かけてなめらか
+export function flipS(t, period, phase, swap = 1.2) {
+  const u = ((t - phase) % period + period) % period, h = period / 2
+  if (u < h) return u < swap ? -1 + 2 * sstep(0, swap, u) : 1
+  return u - h < swap ? 1 - 2 * sstep(0, swap, u - h) : -1
+}
+
+// 風。返り値は [wx, wy]
+export function wind(C, x, y, t, out = [0, 0]) {
+  let wx = 0, wy = 0
+  // 高さの帯（帯の境は 4m でなめらかに）
+  const B = C.bands
+  for (let i = 0; i < B.length; i++) {
+    const b = B[i]
+    const w = sstep(b.y0 - 2, b.y0 + 2, y) * (1 - sstep(b.y1 - 2, b.y1 + 2, y))
+    if (w > 0) {
+      const gx = b.grad ? 1 + b.grad * clamp((y - b.y0) / (b.y1 - b.y0), 0, 1) : 1
+      wx += b.wx * w * gx; wy += (b.wy || 0) * w
+    }
+  }
+  let calm = 1
+  for (const z of C.zones) {
+    const w = rectW(z, x, y); if (!w) continue
+    switch (z.type) {
+      case 'up': wy += z.v * w; if (z.vx) wx += z.vx * w; break
+      case 'add': wx += z.wx * w; wy += (z.wy || 0) * w; break
+      case 'calm': calm *= 1 - w * (z.k ?? 1); break
+      case 'gust': { const p = pulse(t, z.period, z.phase, z.dur); wx += z.wx * w * p; wy += (z.wy || 0) * w * p; break }
+      case 'flip': { const s = flipS(t, z.period, z.phase); wx = wx * (1 - w) + w * Math.abs(wx) * s * (z.dir || 1); break }
+      default: break
+    }
+  }
+  out[0] = wx * calm; out[1] = wy * calm
+  return out
+}
+
+export function stormOn(z, t) { return pulse(t, z.period, z.phase, z.dur, 0.05) > 0.5 }
+
+// ---- 当たり ----
+function segHitsBox(ax, ay, bx, by, b, s = 0.05) {
+  // 線分が箱（少し縮めた）を通るか（スラブ法）
+  const x0 = b.x0 + s, x1 = b.x1 - s, y0 = b.y0 + s, y1 = b.y1 - s
+  let t0 = 0, t1 = 1; const dx = bx - ax, dy = by - ay
+  const clip = (p, q) => { if (p === 0) return q >= 0; const r = q / p; if (p < 0) { if (r > t1) return false; if (r > t0) t0 = r } else { if (r < t0) return false; if (r < t1) t1 = r } return true }
+  return clip(-dx, ax - x0) && clip(dx, x1 - ax) && clip(-dy, ay - y0) && clip(dy, y1 - ay) && t0 <= t1
+}
+function segSeg(ax, ay, bx, by, cx, cy, dx, dy) {
+  const d = (bx - ax) * (dy - cy) - (by - ay) * (dx - cx); if (Math.abs(d) < 1e-9) return false
+  const u = ((cx - ax) * (dy - cy) - (cy - ay) * (dx - cx)) / d
+  const v = ((cx - ax) * (by - ay) - (cy - ay) * (bx - ax)) / d
+  return u >= 0 && u <= 1 && v >= 0 && v <= 1
+}
+function segCircle(ax, ay, bx, by, cx, cy, r) {
+  const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy
+  const t = clamp(((cx - ax) * dx + (cy - ay) * dy) / (l2 || 1), 0, 1)
+  const px = ax + dx * t - cx, py = ay + dy * t - cy
+  return px * px + py * py < r * r
+}
+// 風車の羽根（線分）を返す
+export function millBlades(m, t) {
+  const out = []
+  for (let i = 0; i < m.n; i++) {
+    const a = m.phase + m.w * t + i * 2 * PI / m.n
+    out.push([m.x, m.y, m.x + Math.cos(a) * m.R, m.y + Math.sin(a) * m.R])
+  }
+  return out
+}
+// 糸が何かに掛かったか。掛かった物の種類を返す
+export function lineSnag(C, ax, ay, bx, by, t) {
+  for (const b of C.solids) if (segHitsBox(ax, ay, bx, by, b)) return 'rock'
+  for (const s of C.snags) {
+    if (s.type === 'post' && segCircle(ax, ay, bx, by, s.x, s.y, s.r)) return s.what || 'post'
+    if (s.type === 'seg' && segSeg(ax, ay, bx, by, s.x0, s.y0, s.x1, s.y1)) return s.what || 'post'
+    if (s.type === 'mill') for (const l of millBlades(s, t)) if (segSeg(ax, ay, bx, by, l[0], l[1], l[2], l[3])) return 'mill'
+  }
+  return null
+}
+function pointInSolid(C, x, y, pad = 0.25) {
+  for (const b of C.solids) if (x > b.x0 - pad && x < b.x1 + pad && y > b.y0 - pad && y < b.y1 + pad) return true
+  return false
+}
+
+// ---- 状態 ----
+export function newState(C, flagIdx = 0) {
+  const f = C.flags[flagIdx]
+  return {
+    t: 0, frame: 0, x: f.x, y: f.y + K.r + 0.01, vx: 0, vy: 0,
+    ground: true, groundT: 0, kite: 'folded', L: K.launchL, phi: PI / 2, reel: 0,
+    T: 0, A: 0, psi: 0, why: '', downT: 0,
+    flag: flagIdx, best: f.y, maxY: f.y, falls: 0, resets: 0, lastDrop: 0, dropT: 0,
+    stun: 0, beta: 0, bv: 0, flagT: 0, sec: C.flags[flagIdx].sec ?? 0, done: false, landV: 0,
+    ev: [],  // その刻みで起きた事（音・演出用）
+  }
+}
+
+export function respawn(C, s) {
+  const f = C.flags[s.flag]
+  Object.assign(s, { x: f.x, y: f.y + K.r + 0.01, vx: 0, vy: 0, kite: 'folded', L: K.launchL, reel: 0, T: 0, stun: 0, beta: 0, bv: 0, maxY: f.y })
+  s.ev.push('respawn')
+}
+
+const W = [0, 0]
+// input: { aim: 角度|null, reel: -1|0|1（+1=巻く）, walk: -1|0|1, toggle: bool }
+export function step(C, s, inp) {
+  s.ev.length = 0
+  if (inp.toggle && s.stun <= 0) {
+    if (s.kite === 'flying') { s.kite = 'folded'; s.ev.push('fold') }
+    else if (s.ground) launch(C, s, inp)
+  }
+  const h = DT / SUB
+  for (let i = 0; i < SUB; i++) sub(C, s, inp, h)
+  s.t += DT; s.frame++
+  if (s.stun > 0) s.stun -= DT
+  if (s.dropT > 0) s.dropT -= DT
+  if (s.flagT > 0) s.flagT -= DT
+  // 旗
+  if (s.ground) {
+    for (let i = s.flag + 1; i < C.flags.length; i++) {
+      const f = C.flags[i]
+      if (Math.abs(s.x - f.x) < 1.6 && Math.abs(s.y - K.r - f.y) < 0.6) {
+        s.flag = i; s.flagT = 2.5; s.sec = f.sec ?? s.sec; s.ev.push('flag')
+        if (f.goal && !s.done) { s.done = true; s.ev.push('goal') }
+      }
+    }
+  }
+  if (s.y > s.best) s.best = s.y
+  if (s.y < K.abyss) { s.resets++; s.falls++; respawn(C, s) }
+  // 体の振れ（見た目。手を支点に、糸と反対へぶら下がる）
+  const tgt = (s.kite === 'flying' && !s.ground) ? clamp(angDiff(s.phi, PI / 2), -1.2, 1.2) * 0.85 : 0
+  s.bv += (-(s.beta - tgt) * 26 - s.bv * 4.2 - s.vx * 0.0) * DT
+  s.beta += s.bv * DT
+}
+
+function launch(C, s, inp) {
+  const hx = s.x, hy = s.y + K.hand
+  wind(C, hx, hy + 4, s.t, W)
+  const psi = Math.atan2(W[1], W[0])
+  let a = inp.aim ?? PI / 2
+  const d = clamp(angDiff(a, psi), -K.win * 0.8, K.win * 0.8)
+  a = psi + d
+  if (Math.sin(a) < 0.25) a = Math.cos(a) >= 0 ? 0.3 : PI - 0.3
+  s.kite = 'flying'; s.L = K.launchL; s.phi = a; s.why = ''
+  s.ev.push('launch')
+}
+
+function down(s, why) {
+  if (s.kite !== 'flying') return
+  s.kite = 'down'; s.why = why; s.downT = 0; s.T = 0; s.ev.push('down:' + why)
+}
+
+function sub(C, s, inp, h) {
+  const g = K.g
+  let ax = 0, ay = -g
+  const hx = s.x, hy = s.y + K.hand
+  s.reel = 0; s.T = 0
+  if (s.kite === 'flying') {
+    const ux = Math.cos(s.phi), uy = Math.sin(s.phi)
+    let r = 0
+    if (s.stun <= 0) {
+      if (inp.reel > 0 && s.L > K.Lmin) { r = K.reelIn; s.L = Math.max(K.Lmin, s.L - r * h) }
+      else if (inp.reel < 0 && s.L < K.Lmax) { r = -K.reelOut; s.L = Math.min(K.Lmax, s.L + K.reelOut * h) }
+    }
+    s.reel = r
+    const kx = hx + ux * s.L, ky = hy + uy * s.L
+    wind(C, kx, ky, s.t, W)
+    const Ax = W[0] - s.vx * K.vf + r * ux, Ay = W[1] - s.vy * K.vf + r * uy
+    const A = Math.hypot(Ax, Ay), psi = Math.atan2(Ay, Ax)
+    s.A = A; s.psi = psi
+    let T = 0
+    if (A < K.stallA) {
+      // 風が切れた: 凧は真下へ落ちていく
+      const d = angDiff(-PI / 2, s.phi)
+      s.phi += clamp(d, -1.5 * h, 1.5 * h)
+      T = 0.04
+    } else {
+      const om = Math.min(3.4, 0.32 * A)
+      let tgt = inp.aim == null ? s.phi : inp.aim
+      let d = angDiff(tgt, psi)
+      d = clamp(d, -K.win, K.win)
+      const want = psi + d
+      const cur = angDiff(s.phi, psi)
+      const rate = Math.abs(cur) > K.win ? Math.max(om, 2.4) : om
+      s.phi += clamp(angDiff(want, s.phi), -rate * h, rate * h)
+      const dd = Math.abs(angDiff(s.phi, psi))
+      // 風下の真ん中で一番強く、端（真上など）でも 4 分の 1 は残る
+      const c = 0.25 + 0.75 * Math.max(0, Math.cos(Math.min(dd, PI / 2)))
+      const lenF = 0.8 + 0.5 * (s.L - K.Lmin) / (K.Lmax - K.Lmin)
+      T = Math.min(K.Tcap, (A / K.A1) ** 2 * c * lenF)
+    }
+    s.T = T
+    ax += g * T * Math.cos(s.phi); ay += g * T * Math.sin(s.phi)
+    // 凧が落ちきった・岩に入った・糸が掛かった・雷
+    const nkx = hx + Math.cos(s.phi) * s.L, nky = hy + Math.sin(s.phi) * s.L
+    if (s.phi < -0.28 && s.phi > -PI + 0.28) down(s, A < K.stallA ? 'stall' : 'low')
+    else if (pointInSolid(C, nkx, nky)) down(s, 'rock')
+    else { const sn = lineSnag(C, hx, hy, nkx, nky, s.t); if (sn) down(s, sn) }
+    if (s.kite === 'flying') for (const z of C.storms) if (stormOn(z, s.t) && nkx > z.x0 && nkx < z.x1 && nky > z.y0 && nky < z.y1) { down(s, 'thunder'); s.stun = 0.9; break }
+  } else if (s.kite === 'down') { s.downT += h }
+
+  // 地面と歩き
+  const walkIn = s.stun > 0 ? 0 : inp.walk
+  if (s.ground && ay <= 0) {
+    const N = -ay
+    const vt = walkIn * (s.kite === 'flying' ? K.walkFly : K.walk)
+    const need = (vt - s.vx) / h - ax
+    const lim = K.mu * N + (walkIn ? 0 : 0)
+    ax += clamp(need, -lim, lim)
+  } else if (!s.ground) {
+    const v = Math.hypot(s.vx, s.vy)
+    ax -= K.drag * v * s.vx; ay -= K.drag * v * s.vy
+    ax += walkIn * 1.2 // 空中で少しだけ体をひねれる
+  }
+  s.vx += ax * h; s.vy += ay * h
+  s.x += s.vx * h; s.y += s.vy * h
+  collide(C, s, walkIn)
+}
+
+function collide(C, s, walkIn) {
+  const r = K.r
+  const wasGround = s.ground
+  s.ground = false
+  for (let it = 0; it < 3; it++) {
+    for (const b of C.solids) {
+      const cx = clamp(s.x, b.x0, b.x1), cy = clamp(s.y, b.y0, b.y1)
+      let dx = s.x - cx, dy = s.y - cy
+      const d2 = dx * dx + dy * dy
+      if (d2 >= r * r) continue
+      let d = Math.sqrt(d2), nx, ny
+      if (d < 1e-6) { // 中に入った: 一番近い面へ
+        const L = s.x - b.x0, R = b.x1 - s.x, D = s.y - b.y0, U = b.y1 - s.y
+        const m = Math.min(L, R, D, U)
+        if (m === U) { nx = 0; ny = 1; d = -U } else if (m === D) { nx = 0; ny = -1; d = -D } else if (m === L) { nx = -1; ny = 0; d = -L } else { nx = 1; ny = 0; d = -R }
+      } else { nx = dx / d; ny = dy / d }
+      // 段差を上がる（歩いていて、横からぶつかった低い段）
+      if (wasGround && Math.abs(nx) > 0.7 && b.y1 - (s.y - r) < K.stepUp && b.y1 - (s.y - r) > 0 && walkIn * nx < 0) {
+        s.y = b.y1 + r + 0.005; s.vy = Math.max(s.vy, 0); s.ground = true; continue
+      }
+      const pen = r - d
+      s.x += nx * pen; s.y += ny * pen
+      const vn = s.vx * nx + s.vy * ny
+      if (vn < 0) {
+        if (ny > 0.6) { s.landV = -vn }
+        s.vx -= vn * nx; s.vy -= vn * ny
+      }
+      if (ny > 0.6) s.ground = true
+    }
+  }
+  if (s.ground && !wasGround) {
+    const drop = s.maxY - s.y
+    if (s.landV > 19) { s.stun = 0.7; s.ev.push('thud') } else if (s.landV > 6) s.ev.push('land')
+    if (drop > 5) { s.lastDrop = drop; s.dropT = 2.4; s.falls++; s.ev.push('drop') }
+    s.maxY = s.y
+  }
+  if (s.ground) s.groundT += DT / SUB; else { s.groundT = 0; if (s.y > s.maxY) s.maxY = s.y }
+  if (s.ground && s.y > s.maxY) s.maxY = s.y
+}
+
+export function kitePos(s) {
+  return [s.x + Math.cos(s.phi) * s.L, s.y + K.hand + Math.sin(s.phi) * s.L]
+}

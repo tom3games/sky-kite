@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>SKY KITE｜凧に引かれて岩山を登る3D</title>
+<meta name="description" content="大きな凧に引かれて、縦に長い岩山を登る3Dアクション。見えない風を旗や煙で読み、糸を出して、巻いて、体を持ち上げる。落ちたら下の足場から登り直し。ブラウザで遊べる。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="SKY KITE">
+<meta property="og:description" content="大きな凧に引かれて岩山を登る。風を読んで糸を出し、巻いて、体を持ち上げる。落ちたら下の足場から。">
+<meta property="og:image" content="https://tom3games.github.io/sky-kite/og.png?v=1">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://tom3games.github.io/sky-kite/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#2a2d31">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css?v=1">
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
+</head>
+<body>
+<div id="view"></div>
+
+<section id="title" class="screen">
+  <div class="t-box">
+    <h1 class="logo">SKY KITE</h1>
+    <p class="t-sub" data-t="sub">凧に引かれて、岩山の上まで。</p>
+    <button id="startBtn" class="start" data-t="start">登る</button>
+    <p class="t-note" id="tNote" data-t="proto">試作版（灰色の箱）。操作の手ざわりを見るための版です。</p>
+    <div class="t-how" id="howPc">
+      <p><b data-t="h_aim">マウスの向き</b><span data-t="h_aim2">凧を振る</span></p>
+      <p><b data-t="h_in">左クリック</b><span data-t="h_in2">糸を巻く（体が上がる）</span></p>
+      <p><b data-t="h_out">右クリック</b><span data-t="h_out2">糸を出す（凧が高く遠くへ）</span></p>
+      <p><b>Space</b><span data-t="h_tog">揚げる／たたむ</span></p>
+      <p><b>A / D</b><span data-t="h_walk">歩く</span></p>
+      <p><b>R</b><span data-t="h_r">旗へ戻る</span></p>
+    </div>
+    <div class="t-how" id="howTouch" hidden>
+      <p><b data-t="h_pad">左の指</b><span data-t="h_pad2">凧を振る／たたんでいる時は歩く</span></p>
+      <p><b data-t="h_btn">右の指</b><span data-t="h_btn2">巻く・出す・揚げる</span></p>
+    </div>
+    <button id="langBtn" class="lang">English</button>
+  </div>
+</section>
+
+<div id="hud" hidden>
+  <div id="alt"><i id="altBest"></i><i id="altNow"></i><span id="altTxt">0m</span></div>
+  <div id="line"><span id="lineTxt"></span><i id="lineFill"></i></div>
+  <div id="msg"></div>
+  <div id="drop"></div>
+  <button id="menuBtn" aria-label="menu"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+</div>
+
+<div id="touch" hidden>
+  <div id="pad"><div id="padRing"></div><div id="padKnob"></div></div>
+  <button id="bOut" class="tb"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="11" fill="none" stroke="currentColor" stroke-width="3"/><path d="M20 9 v-6 M14 4 l6-3 6 3" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round"/></svg><span data-t="b_out">出す</span></button>
+  <button id="bIn" class="tb big"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="12" fill="none" stroke="currentColor" stroke-width="3"/><path d="M20 8 a12 12 0 0 1 12 12" stroke="currentColor" stroke-width="5" fill="none"/><path d="M29 12 l3 8 -8 -2" fill="currentColor"/></svg><span data-t="b_in">巻く</span></button>
+  <button id="bTog" class="tb"><svg viewBox="0 0 40 40"><path d="M20 3 L33 16 L20 30 L7 16Z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><path d="M20 30 q-3 4 0 7" stroke="currentColor" stroke-width="2.5" fill="none"/></svg><span id="bTogTxt" data-t="b_up">揚げる</span></button>
+</div>
+
+<section id="menu" class="screen" hidden>
+  <div class="t-box">
+    <button id="mResume" data-t="m_resume">続ける</button>
+    <button id="mFlag" data-t="m_flag">旗へ戻る</button>
+    <button id="mTitle" data-t="m_title">タイトルへ</button>
+  </div>
+</section>
+
+<section id="goal" class="screen" hidden>
+  <div class="t-box">
+    <h2 data-t="goal">頂上</h2>
+    <p id="goalTxt"></p>
+    <button id="gAgain" data-t="again">もう一度</button>
+    <a id="gPost" class="post" target="_blank" rel="noopener" data-t="post">Xでポスト</a>
+  </div>
+</section>
+
+<script type="module" src="js/game.js?v=1"></script>
+</body>
+</html>
