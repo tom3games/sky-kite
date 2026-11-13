@@ -10,7 +10,7 @@ export const K = {
   hand: 0.55,       // 糸を持つ手の高さ（体の中心から）
   walk: 2.6, mu: 1.5,
   drag: 0.07,       // 空気の抵抗（体）
-  Lmin: 3, Lmax: 34, reelIn: 4.5, reelOut: 3.2, launchL: 8, startL: 18,
+  Lmin: 3, Lmax: 26, reelIn: 4.5, reelOut: 3.2, launchL: 8, startL: 18,
   win: 80 * Math.PI / 180,  // 凧が飛べる範囲（風下から左右に）
   A1: 6.5,          // この見かけの風で、真ん中の引きが体重と同じ
   Tcap: 3.4, stallA: 3.2,
@@ -181,7 +181,7 @@ function launch(C, s) {
   const psi = Math.atan2(W[1], W[0])
   // 真上に近い順に、糸が岩に掛からず凧が岩に入らない向きを探す（長さも短い方へ試す）
   let pick = null, L = 0
-  for (const L0 of [s.downT >= 9 ? K.startL : K.launchL, 6, 4]) {
+  for (const L0 of [s.downT >= 9 && s.flag === 0 ? K.startL : K.launchL, 6, 4]) {
   L = L0
   for (let i = 0; i < 13 && pick == null; i++) {
     const off = (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.17
@@ -233,9 +233,10 @@ function sub(C, s, inp, h) {
       const om = Math.min(3.4, 0.32 * A)
       // 振った向き（aim）は風の窓の中に収める（窓の外へ回し続けても戻りが遅れない）
       let d = clamp(angDiff(s.aim, psi), -K.win, K.win)
-      s.aim = psi + d
-      if (s.aim < -0.1 && s.aim > -PI / 2) s.aim = -0.1
-      if (s.aim < -PI / 2 || s.aim > PI + 0.1) s.aim = PI + 0.1
+      // 角度は [-90°, 270°) で表し、地面より下（-6° 未満・186° 超）へは振らない
+      let a = psi + d
+      a = ((a + PI / 2) % (2 * PI) + 2 * PI) % (2 * PI) - PI / 2
+      s.aim = clamp(a, -0.1, PI + 0.1)
       d = clamp(angDiff(s.aim, psi), -K.win, K.win)
       const want = psi + d
       const cur = angDiff(s.phi, psi)
@@ -244,7 +245,7 @@ function sub(C, s, inp, h) {
       const dd = Math.abs(angDiff(s.phi, psi))
       // 風下の真ん中で一番強く、端（真上など）でも 4 分の 1 は残る
       const c = 0.25 + 0.75 * Math.max(0, Math.cos(Math.min(dd, PI / 2)))
-      const lenF = 0.8 + 0.5 * (s.L - K.Lmin) / (K.Lmax - K.Lmin)
+      const lenF = 0.8 + 0.5 * (s.L - K.Lmin) / (K.Lmax - K.Lmin) // 糸を出すほど強く引く
       // 体が凧の方へ速く動くと糸がゆるむ（引っぱられて飛ぶ勢いが止まらなくなるのを防ぐ）
       const toward = s.vx * ux + s.vy * uy - Math.max(0, r)
       const slack = clamp(1 - (toward - 2) / 6, 0.15, 1)

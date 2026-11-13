@@ -2,7 +2,7 @@ import '../mute-auto.mjs'
 // 記録した入力を実画面で流して何枚か撮る: node tools/replay.mjs <旗> <名前> <撮る秒,...> [w h]
 import { chromium } from 'playwright'
 import { readFileSync } from 'node:fs'
-process.env.PORT = process.env.VPORT || '5842'
+process.env.PORT = process.env.VPORT || '5846'
 await import('../server.mjs')
 const [flag, name, times, w = 1280, h = 720] = process.argv.slice(2)
 const rec = JSON.parse(readFileSync(import.meta.dirname + `/rec_${flag}.json`))

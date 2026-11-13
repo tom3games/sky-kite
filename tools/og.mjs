@@ -1,18 +1,19 @@
 import '../mute-auto.mjs'
-// og.png（1200x630）を実画面から撮る
+// og.png（1200x630）と、B の絵との比較用の実画面（shots/final_pc.png）を撮る
 import { chromium } from 'playwright'
 import { readFileSync } from 'node:fs'
-process.env.PORT = '5843'
+process.env.PORT = '5847'
 await import('../server.mjs')
-const rec = JSON.parse(readFileSync(import.meta.dirname + '/rec_0.json'))
 const br = await chromium.launch({ args: ['--use-gl=angle', '--ignore-gpu-blocklist'] })
-const p = await br.newPage({ viewport: { width: 1200, height: 630 }, locale: 'ja-JP' })
-await p.goto(`http://localhost:5843/`)
-await p.waitForFunction(() => window.__skyReady)
-await p.evaluate(rec => { sky.start(); sky.replay(rec, 0) }, rec)
-await p.waitForFunction(() => sky.s.t >= +(process?.env?.T || 12), null, { polling: 50 }).catch(() => {})
-await p.waitForFunction(() => sky.s.t >= 12.5, null, { polling: 50 })
-await p.evaluate(() => { document.getElementById('hud').hidden = true; document.getElementById('msg').textContent = '' })
-await p.waitForTimeout(100)
-await p.screenshot({ path: 'og.png' })
+for (const [w, h, out, f, at] of [[1200, 630, 'og.png', 4, 8], [1280, 720, 'shots/final_pc.png', 4, 8], [1280, 720, 'shots/final_pc2.png', 6, 10], [390, 844, 'shots/final_phone.png', 4, 8]]) {
+  const rec = JSON.parse(readFileSync(import.meta.dirname + `/rec_${f}.json`))
+  const p = await br.newPage({ viewport: { width: w, height: h }, locale: 'ja-JP' })
+  await p.goto(`http://localhost:5847/${w < h ? '?touch' : ''}`)
+  await p.waitForFunction(() => window.__skyReady, null, { timeout: 40000 })
+  await p.evaluate(([rec, f]) => { sky.start(); sky.replay(rec, f) }, [rec, f])
+  await p.waitForFunction(at => sky.s.t >= at, at, { polling: 30, timeout: 60000 })
+  if (out === 'og.png') await p.evaluate(() => { for (const id of ['hud', 'tut', 'touch']) document.getElementById(id).style.visibility = 'hidden'; const d = document.createElement('div'); d.innerHTML = '<div style="position:fixed;left:48px;top:40px;font:700 112px/0.9 Cormorant Garamond,Georgia,serif;color:#fff;letter-spacing:.06em;text-shadow:0 4px 20px rgba(0,10,40,.5)">SKY KITE</div>'; document.body.appendChild(d) })
+  await p.waitForTimeout(400)
+  await p.screenshot({ path: out }); await p.close()
+}
 await br.close(); process.exit(0)

@@ -8,25 +8,30 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="SKY KITE">
 <meta property="og:description" content="大きな凧に引かれて岩山を登る。風を読んで糸を出し、巻いて、体を持ち上げる。落ちたら下の足場から。">
-<meta property="og:image" content="https://tom3games.github.io/sky-kite/og.png?v=2">
+<meta property="og:image" content="https://tom3games.github.io/sky-kite/og.png?v=3">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="https://tom3games.github.io/sky-kite/">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="theme-color" content="#2a2d31">
+<meta name="theme-color" content="#1a4aa6">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Zen+Kaku+Gothic+New:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=3">
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
 </head>
 <body>
 <div id="view"></div>
 
-<section id="title" class="screen">
+<section id="loading" class="screen"><div class="t-box"><p id="ldTxt" class="t-sub">山へ向かう</p><div class="ld-bar"><i id="ldFill"></i></div></div></section>
+
+<section id="title" class="screen" hidden>
   <div class="t-box">
     <h1 class="logo">SKY KITE</h1>
-    <p class="t-sub" data-t="sub">凧に引かれて、岩山の上まで。</p>
+    <p class="t-sub" data-t="sub">深紅の凧に引かれて、雪の岩山の頂まで。</p>
     <button id="startBtn" class="start" data-t="start">登る</button>
-    <p class="t-note" id="tNote" data-t="proto">試作版（灰色の箱）。操作の手ざわりを見るための版です。</p>
+    <div class="t-stripe" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
     <div class="t-how" id="howPc">
       <p><b>Space / クリック</b><span data-t="h_in2">押している間、糸を巻く（体が上がる）。離すと糸が出る</span></p>
       <p><b>A D / ← →</b><span data-t="h_aim2">凧を左右に振る（足場では歩く）</span></p>
@@ -40,9 +45,10 @@
 </section>
 
 <div id="hud" hidden>
-  <div id="alt"><i id="altBest"></i><i id="altNow"></i><span id="altTxt">0m</span></div>
+  <div id="alt"><div id="altTicks"></div><i id="altBest"></i><i id="altNow"></i><span id="altTxt">0m</span></div>
   <div id="msg"></div>
   <div id="drop"></div>
+  <button id="muteBtn" aria-label="sound"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path class="w" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/><path class="x" d="M16 9l5 6M21 9l-5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
   <button id="menuBtn" aria-label="menu"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
 </div>
 
@@ -69,6 +75,6 @@
   </div>
 </section>
 
-<script type="module" src="js/game.js?v=2"></script>
+<script type="module" src="js/game.js?v=3"></script>
 </body>
 </html>

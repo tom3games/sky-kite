@@ -18,7 +18,8 @@ const goal = C.flags[to]
 function score(s) {
   if (s.flag >= to) return 1e6 - s.t
   const dx = s.x - goal.x, dy = s.y - goal.y
-  return -Math.hypot(dx * 0.6, dy) + Math.min(s.y, goal.y + 2) * 0.8 - s.resets * 50 + (s.kite === 'flying' ? s.L * 0.35 : 0)
+  const near = s.y > goal.y - 2.5
+  return Math.min(s.y, goal.y + 1.5) - (near ? Math.abs(dx) * 0.7 : Math.abs(dx) * 0.08) - s.resets * 50 + (s.kite === 'flying' ? s.L * 0.25 : -3)
 }
 function run(s, a) {
   const n = HOLD
@@ -48,7 +49,9 @@ for (let depth = 0; depth * HOLD / 60 < MAXT; depth++) {
     }
   }
   next.sort((a, b) => b.sc - a.sc)
-  beam = next.slice(0, BEAM)
+  // 横の位置ごとに上位を残す（一つの場所に固まらないように）
+  const per = new Map(); beam = []
+  for (const n of next) { const k = Math.round(n.s.x / 4); const c = per.get(k) || 0; if (c < Math.max(3, BEAM / 12)) { per.set(k, c + 1); beam.push(n) } if (beam.length >= BEAM) break }
   if (!beam.length) { console.error("empty at", depth); break }
   if (beam[0].s.flag >= to) { best = beam[0]; break }
   if (depth % 20 === 0) { const b = beam[0].s; console.error(`t=${(depth * HOLD / 60).toFixed(1)} best x=${b.x.toFixed(1)} y=${b.y.toFixed(1)} kite=${b.kite} L=${b.L.toFixed(0)} sc=${beam[0].sc.toFixed(1)}`) }
