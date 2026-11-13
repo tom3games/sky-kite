@@ -23,8 +23,8 @@ function applyLang() {
   document.querySelectorAll('[data-t]').forEach(e => { e.textContent = tr(e.dataset.t) })
   $('langBtn').textContent = lang === 'ja' ? 'English' : '日本語'
 }
-const WHY = { ja: { nowind: '岩の下では凧が揚がらない。外へ歩く', stall: '風が切れた', low: '凧が落ちた', rock: '糸が岩に掛かった', mill: '糸が風車に巻き込まれた', post: '糸が引っかかった', thunder: '雷が落ちた', tree: '糸が木に掛かった', bell: '糸が鐘楼に掛かった' },
-  en: { nowind: 'No room to launch here. Walk out', stall: 'The wind died', low: 'Kite fell', rock: 'Line caught on rock', mill: 'Line caught in the windmill', post: 'Line snagged', thunder: 'Lightning!', tree: 'Line caught in a tree', bell: 'Line caught on the belfry' } }
+const WHY = { ja: { edge: '山から外れた', nowind: '岩の下では凧が揚がらない。外へ歩く', stall: '風が切れた', low: '凧が落ちた', rock: '糸が岩に掛かった', mill: '糸が風車に巻き込まれた', post: '糸が引っかかった', thunder: '雷が落ちた', tree: '糸が木に掛かった', bell: '糸が鐘楼に掛かった' },
+  en: { edge: 'Off the mountain', nowind: 'No room to launch here. Walk out', stall: 'The wind died', low: 'Kite fell', rock: 'Line caught on rock', mill: 'Line caught in the windmill', post: 'Line snagged', thunder: 'Lightning!', tree: 'Line caught in a tree', bell: 'Line caught on the belfry' } }
 
 let view = null
 let s = newState(C, 0)

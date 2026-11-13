@@ -168,7 +168,9 @@ export function step(C, s, inp) {
     }
   }
   if (s.y > s.best) s.best = s.y
-  if (s.y < K.abyss) { s.resets++; s.falls++; respawn(C, s) }
+  // 山から外れた（左右の外）: 凧は落ち、少しして旗へ
+  if (Math.abs(s.x) > (C.edge ?? 37) + 3.5) { if (s.kite === 'flying') down(s, 'edge'); s.outT = (s.outT || 0) + DT } else s.outT = 0
+  if (s.y < K.abyss || s.outT > 1.4) { s.resets++; s.falls++; s.outT = 0; respawn(C, s) }
   // 体の振れ（見た目。手を支点に、糸と反対へぶら下がる）
   const tgt = (s.kite === 'flying' && !s.ground) ? clamp(angDiff(s.phi, PI / 2), -1.2, 1.2) * 0.85 : 0
   s.bv += (-(s.beta - tgt) * 26 - s.bv * 4.2 - s.vx * 0.0) * DT

@@ -54,26 +54,35 @@ export async function makeView(C, el, opt = {}) {
   const envP = track(new Promise(r => new HDRLoader().load('assets/sky_1k.hdr', h => { h.mapping = THREE.EquirectangularReflectionMapping; scene.environment = pmrem.fromEquirectangular(h).texture; scene.environmentIntensity = 0.7; h.dispose(); r() }, undefined, () => r())))
   const gltfP = track(new Promise(r => new GLTFLoader().load('assets/models/Adventurer.gltf', r, undefined, () => r(null))))
 
-  // ---- 空と遠景 ----
+  // ---- 空: B と同じ世界の360度パノラマ（正距円筒）。霧の色は地平線の色に合わせる ----
+  let panoTex
+  loads.push(track(new Promise(r => { panoTex = tl.load('assets/pano360.jpg', t => {
+    try { // 地平線のすぐ上の空の色を測って霧の色にする
+      const c = document.createElement('canvas'); c.width = 256; c.height = 128; const g = c.getContext('2d'); g.drawImage(t.image, 0, 0, 256, 128)
+      const d = g.getImageData(0, 59, 256, 2).data; let R = 0, G = 0, B = 0; for (let i = 0; i < d.length; i += 4) { R += d[i]; G += d[i + 1]; B += d[i + 2] }
+      const n = d.length / 4; scene.fog.color.setRGB(R / n / 255, G / n / 255, B / n / 255, THREE.SRGBColorSpace)
+    } catch (e) {}
+    r()
+  }, undefined, r) })))
+  panoTex.colorSpace = THREE.SRGBColorSpace
   const skyMat = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { top: { value: new THREE.Color(PAL.skyTop) }, low: { value: new THREE.Color(PAL.skyLow) } },
-    vertexShader: 'varying vec3 vp; void main(){ vp = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-    fragmentShader: 'uniform vec3 top; uniform vec3 low; varying vec3 vp; void main(){ float h = clamp(vp.y*1.8+0.12,0.0,1.0); gl_FragColor = vec4(mix(low, top, pow(h,0.7)),1.0); }',
+    uniforms: { pano: { value: panoTex }, rot: { value: 0.18 } },
+    vertexShader: 'varying vec3 vW; void main(){ vW = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+    fragmentShader: `uniform sampler2D pano; uniform float rot; varying vec3 vW;
+      void main(){ vec3 d = normalize(vW);
+        // 遊ぶ高さは地平線より上なので、地平線を少し下げて見せる
+        float lat = asin(clamp(d.y, -1.0, 1.0));
+        vec2 uv = vec2(fract(atan(d.x, -d.z) / 6.2831853 + 0.5 + rot), clamp(0.5 + (lat + 0.06) / 3.1415927, 0.001, 0.999));
+        gl_FragColor = vec4(texture2D(pano, uv).rgb, 1.0);
+        #include <colorspace_fragment>
+      }`,
   })
-  const sky = new THREE.Mesh(new THREE.SphereGeometry(900, 32, 16), skyMat); sky.renderOrder = -10; scene.add(sky)
-  let panoTex
-  loads.push(track(new Promise(r => { panoTex = tl.load('assets/pano.jpg', r, undefined, r) })))
-  panoTex.colorSpace = THREE.SRGBColorSpace
-  // 遠くの山並みのマットペイント（円筒の内側。カメラの高さに少し遅れて付いてくる）
-  const pano = new THREE.Mesh(new THREE.CylinderGeometry(700, 700, 440, 48, 1, true, Math.PI * 0.6, Math.PI * 0.8),
-    new THREE.MeshBasicMaterial({ map: panoTex, side: THREE.BackSide, fog: false, transparent: true, depthWrite: false }))
-  pano.material.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n diffuseColor.a *= 1.0 - smoothstep(0.45, 0.62, vMapUv.y);') }
-  pano.renderOrder = -9; scene.add(pano)
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(900, 48, 24), skyMat); sky.renderOrder = -10; scene.add(sky)
 
   // ---- 光 ----
   scene.add(new THREE.HemisphereLight(0xcfe2ff, 0xdfe6ef, 0.6))
-  const sun = new THREE.DirectionalLight(0xfff3df, 3.0)
+  const sun = new THREE.DirectionalLight(0xfff3df, 3.6)
   sun.castShadow = true
   sun.shadow.mapSize.set(low ? 1024 : 2048, low ? 1024 : 2048)
   Object.assign(sun.shadow.camera, { left: -32, right: 32, top: 32, bottom: -32, near: 1, far: 170 })
@@ -84,6 +93,7 @@ export async function makeView(C, el, opt = {}) {
   const T = {
     rockD: tex('rock_face_03_diff.jpg', true), rockN: tex('rock_face_03_nor_gl.jpg'), rockR: tex('rock_face_03_rough.jpg'),
     darkD: tex('dark_rock_02_diff.jpg', true), darkN: tex('dark_rock_02_nor_gl.jpg'), darkR: tex('dark_rock_02_rough.jpg'),
+    cliffD: tex('cliff_side_diff.jpg', true), cliffN: tex('cliff_side_nor_gl.jpg'), cliffR: tex('cliff_side_rough.jpg'),
     stoneD: tex('rock_wall_08_diff.jpg', true), stoneN: tex('rock_wall_08_nor_gl.jpg'), stoneR: tex('rock_wall_08_rough.jpg'),
     snowD: tex('snow_02_diff', true), snowN: tex('snow_02_nor_gl'), snowR: tex('snow_02_rough'),
     plasD: tex('plastered_wall_04_diff', true), plasN: tex('plastered_wall_04_nor_gl'),
@@ -114,6 +124,11 @@ export async function makeView(C, el, opt = {}) {
   const M = {
     cliff: snowy(T.rockD, T.rockN, T.rockR, { snow: 0.5, sat: 0.12, tint: 0xb5bcc8 }),
     rock: snowy(T.rockD, T.rockN, T.rockR, { snow: 0.55, sat: 0.15, tint: 0xc0c5ce }),
+    strata: snowy(T.cliffD, T.cliffN, T.cliffR, { snow: 0.7, sat: 0.1, tint: 0xeef2f8 }),
+    band: new THREE.MeshStandardMaterial({ color: 0x6e2a22, roughness: 0.8 }),
+    clothR: new THREE.MeshStandardMaterial({ color: 0x8e1d22, side: THREE.DoubleSide, roughness: 1 }),
+    clothB: new THREE.MeshStandardMaterial({ color: 0x2e4f8e, side: THREE.DoubleSide, roughness: 1 }),
+    clothY: new THREE.MeshStandardMaterial({ color: 0xb98a2e, side: THREE.DoubleSide, roughness: 1 }),
     far: snowy(T.rockD, T.rockN, T.rockR, { snow: 0.45, sat: 0.1, tint: 0x6f7889 }),
     ridge: snowy(T.rockD, T.rockN, T.rockR, { snow: 0.6, sat: 0.12, tint: 0xa9b0bd }),
     snow: new THREE.MeshStandardMaterial({ map: T.snowD, normalMap: T.snowN, roughnessMap: T.snowR, color: 0xffffff, roughness: 0.7 }),
@@ -179,25 +194,29 @@ export async function makeView(C, el, opt = {}) {
   const DEPTH = { ground: 6, rock: 5, wood: 3.2, ridge: 14, tower: 3.4, house: 5.5 }
   const WALLZ = -3.5
   const top = C.solids.reduce((m, b) => Math.max(m, b.y1), 0)
-  // 棚の奥の岩の柱（とぎれとぎれ。間から空と遠くの山並みが見える）
-  for (let i = 0; i < 16; i++) {
-    const side = i % 2 ? 1 : -1, x = side * (40 + rnd() * 70), w = 14 + rnd() * 18, h = 90 + rnd() * 120, y = -40 + (i / 16) * (top + 20)
-    const g = new THREE.CylinderGeometry(w * 0.25, w * 0.7, h, 9, Math.round(h / 3))
-    const p = g.attributes.position
-    for (let j = 0; j < p.count; j++) { const px = p.getX(j), py = p.getY(j), pz = p.getZ(j); const d = (vnoise(px * 0.25 + i, py * 0.12, pz * 0.25) - 0.5) * w * 0.5; p.setXYZ(j, px + d, py, pz + d * 0.7) }
-    g.computeVertexNormals(); worldUV(g, w * 2, h, w, 6)
-    const m = new THREE.Mesh(g, M.far); m.position.set(x, y, -90 - rnd() * 60); m.rotation.y = rnd() * 6; scene.add(m)
-  }
-  // 両側の尾根の向こうの岩山（奥行き）
-  for (let i = 0; i < 30; i++) {
-    const side = i % 2 ? 1 : -1, h = 30 + rnd() * 60
-    const g = new THREE.ConeGeometry(10 + rnd() * 14, h, 8, 8)
-    const p = g.attributes.position
-    for (let j = 0; j < p.count; j++) { const x = p.getX(j), y = p.getY(j), z = p.getZ(j); const d = (vnoise(x * 0.2 + i, y * 0.2, z * 0.2) - 0.5) * 7; p.setXYZ(j, x + d, y, z + d) }
-    g.computeVertexNormals(); worldUV(g, 20, h, 20, 8)
-    const m = new THREE.Mesh(g, M.cliff)
-    m.position.set(side * (54 + rnd() * 50), -20 + (i / 30) * (top + 50) + rnd() * 20, -8 - rnd() * 40)
-    m.rotation.y = rnd() * 6; m.receiveShadow = true; scene.add(m)
+  // ==== 山の断崖: 一つの大きな山肌。足場は全部ここから張り出す（浮島にしない） ====
+  // 山肌の奥行き（遊ぶ面 z=0 より奥）。端へ行くほど奥へ回り込み、山の輪郭の向こうに空が見える
+  const cliffZ = (x, y) => -4.6 - Math.pow(Math.max(0, Math.abs(x) - 16), 1.55) * 0.1 - (vnoise(x * 0.05, y * 0.035, 7) - 0.5) * 3
+  {
+    const X0 = -64, X1 = 64, Y0 = -36, Y1 = top + 70
+    const nx = 128, ny = Math.round((Y1 - Y0) / 1.1)
+    const g = new THREE.PlaneGeometry(X1 - X0, Y1 - Y0, nx, ny)
+    const p = g.attributes.position, uv = g.attributes.uv
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i) + (X0 + X1) / 2, y = p.getY(i) + (Y0 + Y1) / 2
+      // 層の筋（横に走る段）と、縦の溝
+      const strata = Math.sin(y * 1.3 + vnoise(x * 0.1, y * 0.1, 3) * 4) * 0.28 + (vnoise(x * 0.08, y * 0.6, 5) - 0.5) * 0.9
+      const gully = -Math.pow(Math.abs(Math.sin(x * 0.11 + vnoise(x * 0.02, y * 0.02, 9) * 3)), 6) * 1.6
+      let z = cliffZ(x, y) + strata + gully + (vnoise(x * 0.5, y * 0.5, 2) - 0.5) * 0.5
+      // 山頂より上は尖った稜線で終わる
+      const crest = top + 26 + Math.abs(Math.sin(x * 0.09)) * 22 + vnoise(x * 0.2, 1, 1) * 8
+      let yy = y
+      if (y > crest) { yy = crest; z -= (y - crest) * 0.4 }
+      p.setXYZ(i, x, yy, z)
+      uv.setXY(i, x / 9, y / 9)
+    }
+    g.computeVertexNormals()
+    const cliff = new THREE.Mesh(g, M.strata); cliff.receiveShadow = true; cliff.castShadow = false; scene.add(cliff)
   }
   // 雲海
   const cloudTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d'); const id = g.createImageData(256, 256); for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) { const v = vnoise(x / 32, y / 32, 0) * 0.6 + vnoise(x / 12, y / 12, 3) * 0.4; const i = (y * 256 + x) * 4; id.data[i] = id.data[i + 1] = id.data[i + 2] = 238 + v * 17; id.data[i + 3] = 255 * Math.min(1, Math.max(0, (v - 0.22) * 1.9)) } g.putImageData(id, 0, 0); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(10, 10); t.colorSpace = THREE.SRGBColorSpace; return t })()
@@ -207,65 +226,195 @@ export async function makeView(C, el, opt = {}) {
     sea.rotation.x = -Math.PI / 2; sea.position.y = -14 - k * 5; scene.add(sea); seas.push(sea)
   }
 
-  // ---- 足場・建物 ----
+  // ---- 部品を1つの形にまとめる（描く回数を減らす） ----
+  const parts = new Map()
+  function put(geo, mat, x, y, z, rx = 0, ry = 0, rz = 0, sh = true) {
+    geo.rotateX(rx); geo.rotateY(ry); geo.rotateZ(rz); geo.translate(x, y, z)
+    if (!geo.index) geo = geo.toNonIndexed(); else geo = geo.toNonIndexed()
+    for (const k of Object.keys(geo.attributes)) if (!['position', 'normal', 'uv'].includes(k)) geo.deleteAttribute(k)
+    if (!geo.attributes.uv) geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count * 2), 2))
+    const key = mat.uuid + (sh ? 's' : 'n')
+    if (!parts.has(key)) parts.set(key, { mat, sh, list: [] })
+    parts.get(key).list.push(geo)
+  }
+  const box = (w, h, d, s = 2.5) => { const g = new THREE.BoxGeometry(w, h, d); worldUV(g, w, h, d, s); return g }
+  const cyl = (r0, r1, h, n = 6) => new THREE.CylinderGeometry(r0, r1, h, n)
+
+  // ---- 岩棚: 山肌から張り出す。下は山肌へ斜めに戻る持ち送り（くさび） ----
+  function shelf(b) {
+    const w = b.x1 - b.x0, cx = (b.x0 + b.x1) / 2
+    let back = 0; for (let x = b.x0; x <= b.x1; x += 1) back = Math.min(back, cliffZ(x, b.y1))
+    back -= 1.2
+    const front = b.kind === 'ground' ? 3.5 : 1.7
+    rockBox(b, front - back, back, M.strata, 0.4)
+    snowCap(b.x0, b.x1, b.y1, back, front - back)
+    if (b.kind === 'ground') return
+    // 持ち送り: 棚の下から山肌へ。前は細く、奥ほど深く下がる
+    const hh = Math.min(9, 2.2 + w * 0.45), dep = front - back
+    const g = new THREE.BoxGeometry(w, hh, dep, Math.max(2, Math.round(w)), 4, Math.max(2, Math.round(dep)))
+    const p = g.attributes.position
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i)
+      const t = Math.min(1, Math.max(0, (z + dep / 2) / dep)) // 0=奥 1=手前
+      const yTop = hh / 2, yBot = -hh / 2
+      const k = (y - yBot) / hh // 0=下 1=上
+      const bottomAtZ = yTop - hh * Math.pow(1 - t, 1.3)
+      const ny = yTop - (yTop - bottomAtZ) * (1 - k)
+      const xs = 1 - (1 - k) * 0.35 * t
+      const d = (vnoise((x + cx) * 0.5, (ny + b.y0) * 0.5, z * 0.5) - 0.5) * 0.8
+      p.setXYZ(i, x * xs + d * 0.3, ny + (k < 0.99 ? d * 0.5 : 0), z + (t > 0.99 ? d : 0))
+    }
+    g.computeVertexNormals(); worldUV(g, w, hh, dep, 5)
+    const m = new THREE.Mesh(g, M.strata); m.position.set(cx, b.y0 - hh / 2 + 0.02, back + dep / 2); m.castShadow = m.receiveShadow = true; scene.add(m)
+  }
+  // 木の張り出し（板・梁・山肌へ斜めの支え）
+  function balcony(b) {
+    const w = b.x1 - b.x0, h = b.y1 - b.y0, cx = (b.x0 + b.x1) / 2
+    const back = cliffZ(cx, b.y1) - 0.5, front = 1.4, dep = front - back
+    put(box(w, h, dep, 2), M.wood, cx, (b.y0 + b.y1) / 2, back + dep / 2)
+    for (let x = b.x0 + 0.3; x < b.x1; x += 1.8) {
+      put(box(0.2, 0.25, dep), M.darkWood, x, b.y0 - 0.12, back + dep / 2)
+      const L = Math.hypot(dep * 0.8, 2.2), a = Math.atan2(dep * 0.8, 2.2)
+      put(cyl(0.08, 0.1, L), M.darkWood, x, b.y0 - 1.1, front - dep * 0.4, a, 0, 0)
+    }
+    for (let x = b.x0 + 0.15; x <= b.x1; x += 0.9) put(box(0.08, 0.9, 0.08), M.darkWood, x, b.y1 + 0.45, front - 0.1)
+    put(box(w, 0.08, 0.1), M.darkWood, cx, b.y1 + 0.92, front - 0.1)
+    snowCap(b.x0, b.x1, b.y1, back, dep)
+  }
+
+  // ---- 僧院の建物: 白い石壁・赤茶の帯・木の回廊（欄干と柱）・格子の窓枠・平らな屋根の縁飾り ----
+  const WHITE = M.plaster, BAND = M.band, DW = M.darkWood
+  function building(x0, x1, base, h, zb, zf, opt = {}) {
+    const w = x1 - x0, cx = (x0 + x1) / 2, dep = zf - zb
+    // 石の基壇（山肌の色の石積み）
+    put(box(w + 0.3, 1.1, dep + 0.3, 2), M.block, cx, base + 0.55, zb + dep / 2)
+    // 壁（少し内へ傾く）
+    const g = new THREE.BoxGeometry(w, h - 1.1, dep, 2, 2, 2); worldUV(g, w, h, dep, 3)
+    { const p = g.attributes.position; for (let i = 0; i < p.count; i++) if (p.getY(i) > 0) { p.setX(i, p.getX(i) * 0.96); p.setZ(i, p.getZ(i) - 0.06) } g.computeVertexNormals() }
+    put(g, WHITE, cx, base + 1.1 + (h - 1.1) / 2, zb + dep / 2)
+    // 赤茶の帯（屋根の下）と梁の端
+    put(box(w * 0.98 + 0.12, 0.9, dep + 0.1), BAND, cx, base + h - 0.6, zb + dep / 2)
+    for (let x = x0 + 0.2; x < x1; x += 0.42) put(box(0.13, 0.13, 0.45), DW, x, base + h - 0.12, zf + 0.12)
+    // 屋根: 平ら・縁飾り（黒い縁と白い笠石）・雪
+    put(box(w + 0.7, 0.22, dep + 0.7), DW, cx, base + h + 0.08, zb + dep / 2)
+    put(box(w + 0.8, 0.18, dep + 0.8), WHITE, cx, base + h + 0.28, zb + dep / 2)
+    snowCap(x0 - 0.4, x1 + 0.4, base + h + 0.42, zb - 0.4, dep + 0.8)
+    // 窓（台形の黒い枠＋木の格子＋上の小屋根）
+    const rows = Math.max(1, Math.floor((h - 2.2) / 2.1))
+    for (let r = 0; r < rows; r++) for (let x = x0 + 1.1; x < x1 - 0.7; x += 2.0) {
+      const y = base + 1.9 + r * 2.1
+      const fr = new THREE.BoxGeometry(1.1, 1.15, 0.06); { const p = fr.attributes.position; for (let i = 0; i < p.count; i++) if (p.getY(i) > 0) p.setX(i, p.getX(i) * 0.8) }
+      put(fr, M.window, x, y, zf + 0.02)
+      put(box(0.86, 0.08, 0.1), DW, x, y + 0.42, zf + 0.06); put(box(0.86, 0.08, 0.1), DW, x, y - 0.42, zf + 0.06)
+      put(box(0.06, 0.86, 0.08), DW, x - 0.22, y, zf + 0.06); put(box(0.06, 0.86, 0.08), DW, x + 0.22, y, zf + 0.06); put(box(0.06, 0.86, 0.08), DW, x, y, zf + 0.06)
+      put(box(0.8, 0.05, 0.08), DW, x, y, zf + 0.06)
+      put(box(1.3, 0.12, 0.35), BAND, x, y + 0.66, zf + 0.15)
+    }
+    // 木の回廊（張り出し・欄干・柱・上の小屋根）
+    if (opt.gallery !== false && w > 4) {
+      const gy = base + Math.min(h - 1.8, 2.6 + (rows > 1 ? 2.1 : 0)), gd = 1.1
+      put(box(w - 0.4, 0.14, gd, 1.5), M.wood, cx, gy, zf + gd / 2)
+      for (let x = x0 + 0.3; x < x1 - 0.2; x += 1.3) { put(box(0.12, 1.5, 0.12), DW, x, gy + 0.75, zf + gd - 0.08); put(cyl(0.05, 0.05, 1.4), DW, x, gy - 0.6, zf + gd * 0.5, 0.75) }
+      for (let x = x0 + 0.3; x < x1 - 0.2; x += 0.22) put(box(0.04, 0.62, 0.04), DW, x, gy + 0.38, zf + gd - 0.04)
+      put(box(w - 0.4, 0.07, 0.08), DW, cx, gy + 0.72, zf + gd - 0.04)
+      put(box(w - 0.2, 0.1, gd + 0.4), DW, cx, gy + 1.6, zf + gd / 2 + 0.1, -0.12)
+    }
+    // 干した布
+    if (opt.cloth) {
+      const cy0 = base + h - 1.6
+      put(cyl(0.015, 0.015, w + 1.6), M.rope, cx, cy0 + 0.6, zf + 1.6, 0, 0, Math.PI / 2, false)
+      for (let i = 0; i < Math.floor(w / 0.8); i++) { const col = [M.clothR, M.clothB, M.clothY, M.clothR][i % 4]; put(new THREE.PlaneGeometry(0.55, 0.9 + (i % 3) * 0.2), col, x0 + 0.4 + i * 0.8, cy0 + 0.1 - (i % 3) * 0.1, zf + 1.6, 0, 0, 0) }
+    }
+  }
+  // 洞窟の入口（山肌に黒いアーチ）
+  function cave(x, y, wdt = 2.6) {
+    const shp = new THREE.Shape(); shp.moveTo(-wdt / 2, 0); shp.lineTo(-wdt / 2, wdt * 0.6); shp.absarc(0, wdt * 0.6, wdt / 2, Math.PI, 0, true); shp.lineTo(wdt / 2, 0); shp.closePath()
+    const g = new THREE.ShapeGeometry(shp, 8)
+    put(g, M.window, x, y, cliffZ(x, y) + 0.35, 0, 0, 0, false)
+    put(box(wdt + 0.4, 0.3, 0.6), M.block, x, y + 0.1, cliffZ(x, y) + 0.4)
+  }
+  // 石の階段（山肌ぞい、奥）
+  function stairs(x, y, n, dir, z) { for (let i = 0; i < n; i++) put(box(1.3, 0.28, 0.9 + i * 0.02, 1.2), M.block, x + dir * i * 0.5, y + i * 0.28, z) }
+
+  // ---- 吊り橋（板と縄、たわむ） ----
+  function bridge(x0, y0, x1, y1, z) {
+    const L = Math.hypot(x1 - x0, y1 - y0), n = Math.max(6, Math.round(L / 0.42)), sag = L * 0.09
+    const P = u => [x0 + (x1 - x0) * u, y0 + (y1 - y0) * u - sag * 4 * u * (1 - u)]
+    for (let i = 0; i <= n; i++) { const u = i / n, [x, y] = P(u), [x2, y2] = P(Math.min(1, u + 0.01)); put(box(0.3, 0.06, 1.2, 1), M.wood, x, y, z, 0, 0, Math.atan2(y2 - y, x2 - x)) }
+    for (const dz of [-0.6, 0.6]) {
+      const pts = []; for (let i = 0; i <= 16; i++) { const [x, y] = P(i / 16); pts.push(new THREE.Vector3(x, y + 1.0 - Math.sin(i / 16 * Math.PI) * 0.1, z + dz)) }
+      put(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.03, 4), M.rope, 0, 0, 0, 0, 0, 0, false)
+      for (let i = 1; i < n; i += 3) { const [x, y] = P(i / n); put(cyl(0.012, 0.012, 1.0), M.rope, x, y + 0.5, z + dz, 0, 0, 0, false) }
+    }
+    for (const [x, y] of [[x0, y0], [x1, y1]]) for (const dz of [-0.6, 0.6]) put(cyl(0.08, 0.1, 1.6), M.darkWood, x, y + 0.8, z + dz)
+  }
+
+  // ---- 足場・建物を置く ----
+  const bgSpots = []
   for (const b of C.solids) {
-    const d = DEPTH[b.kind] ?? 4
-    if (b.kind === 'house') { house(b); continue }
-    if (b.kind === 'tower') { tower(b); continue }
-    if (b.kind === 'wood') {
-      const w = b.x1 - b.x0, h = b.y1 - b.y0
-      const g = new THREE.BoxGeometry(w, h, d); worldUV(g, w, h, d, 2.5)
-      const m = new THREE.Mesh(g, M.wood); m.position.set((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, WALLZ + d / 2); m.castShadow = m.receiveShadow = true; scene.add(m)
-      for (let x = b.x0 + 0.4; x < b.x1; x += 2.2) { const s2 = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 2.6, 6), M.darkWood); s2.position.set(x, b.y0 - 0.9, WALLZ + 0.9); s2.rotation.x = 0.7; s2.castShadow = true; scene.add(s2) }
-      snowCap(b.x0, b.x1, b.y1, WALLZ, d)
+    if (b.kind === 'house') {
+      const zb = cliffZ((b.x0 + b.x1) / 2, b.y1) - 0.6
+      building(b.x0, b.x1, b.y0, b.y1 - b.y0, zb, 2.4, { cloth: true })
       continue
     }
-    const ridge = b.kind === 'ridge'
-    const z0 = ridge ? WALLZ - 4 : WALLZ - 0.5
-    if (ridge) { rockBox(b, 12, -16, M.ridge, 2.2); continue }
-    const deep = b.kind === 'ground' ? 16 : 9
-    rockBox(b, d + deep, z0 - deep + 0.5, M.rock, 0.35)
-    snowCap(b.x0, b.x1, b.y1, z0 - deep + 0.5, d + deep)
-    if (b.kind !== 'ground') { // 棚の下の岩の根（下へ細くなる）
-      const w = b.x1 - b.x0, hh = 2.5 + w * 0.22
-      const g = new THREE.ConeGeometry(w * 0.45, hh, 7, 4); g.rotateX(Math.PI)
-      const p = g.attributes.position
-      for (let j = 0; j < p.count; j++) { const x = p.getX(j), y = p.getY(j), z = p.getZ(j); const dd = (vnoise(x * 0.4 + b.x0, y * 0.4, z * 0.4) - 0.5) * 2; p.setXYZ(j, x + dd, y, z * 1.3 + dd) }
-      g.computeVertexNormals(); worldUV(g, w, hh, w, 5)
-      const r = new THREE.Mesh(g, M.rock); r.position.set((b.x0 + b.x1) / 2, b.y0 - hh / 2 + 0.3, z0 - deep * 0.45); r.castShadow = r.receiveShadow = true; scene.add(r)
+    if (b.kind === 'tower') { tower(b); continue }
+    if (b.kind === 'wood') { balcony(b); continue }
+    if (b.kind === 'ridge') {
+      // 山の側面の肋（遊ぶ面の端）。山肌から手前まで続く岩
+      const zc = cliffZ((b.x0 + b.x1) / 2, 100) - 2
+      rockBox(b, 2.5 - zc, zc, M.strata, 1.6)
+      continue
     }
+    shelf(b)
+    const w = b.x1 - b.x0
+    if (b.kind === 'rock' && w >= 9 && w < 30) bgSpots.push(b)
   }
-  function house(b) {
-    const w = b.x1 - b.x0, h = b.y1 - b.y0, d = DEPTH.house, cx = (b.x0 + b.x1) / 2
-    const g = new THREE.BoxGeometry(w, h, d); worldUV(g, w, h, d, 3)
-    const m = new THREE.Mesh(g, M.plaster); m.position.set(cx, (b.y0 + b.y1) / 2, WALLZ + d / 2); m.castShadow = m.receiveShadow = true; scene.add(m)
-    const band = new THREE.Mesh(new THREE.BoxGeometry(w + 0.1, 0.7, d + 0.1), M.crimson); band.position.set(cx, b.y1 - 0.55, WALLZ + d / 2); band.castShadow = true; scene.add(band)
-    const roof = new THREE.Mesh(new THREE.BoxGeometry(w + 0.8, 0.3, d + 0.8), M.darkWood); roof.position.set(cx, b.y1 + 0.1, WALLZ + d / 2); roof.castShadow = true; scene.add(roof)
-    for (let x = b.x0 + 0.3; x < b.x1; x += 0.8) { const e = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.5), M.darkWood); e.position.set(x, b.y1 - 0.15, WALLZ + d + 0.2); scene.add(e) }
-    snowCap(b.x0 - 0.4, b.x1 + 0.4, b.y1 + 0.25, WALLZ - 0.4, d + 0.8)
-    for (let x = b.x0 + 1.2; x < b.x1 - 0.8; x += 2.2) for (let y = b.y0 + 1.4; y < b.y1 - 1.4; y += 2.2) {
-      const fr = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.15, 0.08), M.darkWood); fr.position.set(x, y, WALLZ + d + 0.02); scene.add(fr)
-      const wi = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.88, 0.1), M.window); wi.position.set(x, y, WALLZ + d + 0.04); scene.add(wi)
-    }
+  // 背景の建物（遊ぶ面より奥。体は手前を通る）: 広い岩棚の奥に、山肌へ貼り付くように
+  let bi = 0
+  for (const b of bgSpots) {
+    const w = b.x1 - b.x0, bw = Math.min(7, w * 0.5), left = bi % 2 === 0
+    const x0 = left ? b.x0 + 0.6 : b.x1 - 0.6 - bw, h = 3.6 + (bi % 3) * 1.2
+    const zb = Math.min(cliffZ(x0, b.y1), cliffZ(x0 + bw, b.y1)) - 0.5
+    building(x0, x0 + bw, b.y1, h, zb, -1.3, { cloth: bi % 2 === 1, gallery: bw > 4.5 })
+    stairs(left ? x0 + bw + 0.6 : x0 - 0.6, b.y1, 5, left ? 1 : -1, zb + 1.2)
+    if (bi % 3 === 0) cave(left ? x0 + bw + 3 : x0 - 3, b.y1, 2.4)
+    bi++
   }
+  // 吊り橋（背景。谷の上や棚と棚の間）
+  for (const p of C.props.filter(p => p.type === 'bridge')) bridge(p.x, p.y + 6, p.x1, p.y1 + 6, -2.6)
+  bridge(-22, 47, -6, 50, -3.6)
+  bridge(14, 116, 30, 122, -3.4)
+  bridge(-30, 180, -10, 184, -3.2)
+
   function tower(b) {
-    const w = b.x1 - b.x0, h = b.y1 - b.y0, d = DEPTH.tower, cx = (b.x0 + b.x1) / 2
-    const g = new THREE.BoxGeometry(w, h, d); worldUV(g, w, h, d, 2.5)
-    const m = new THREE.Mesh(g, M.block); m.position.set(cx, (b.y0 + b.y1) / 2, WALLZ + 1 + d / 2); m.castShadow = m.receiveShadow = true; scene.add(m)
-    const cap = new THREE.Mesh(new THREE.ConeGeometry(w * 0.85, 1.6, 4), M.crimson); cap.position.set(cx, b.y1 + 0.8, WALLZ + 1 + d / 2); cap.rotation.y = Math.PI / 4; cap.castShadow = true; scene.add(cap)
+    const w = b.x1 - b.x0, h = b.y1 - b.y0, cx = (b.x0 + b.x1) / 2
+    const zb = cliffZ(cx, b.y1) - 0.5, zf = 1.8, dep = zf - zb
+    put(box(w, h * 0.55, dep, 2), M.block, cx, b.y0 + h * 0.275, zb + dep / 2)
+    put(box(w * 0.94, h * 0.45, dep * 0.94, 3), WHITE, cx, b.y0 + h * 0.55 + h * 0.225, zb + dep / 2)
+    put(box(w * 0.98, 0.7, dep), BAND, cx, b.y1 - 0.5, zb + dep / 2)
+    put(box(w * 0.5, 1.2, 0.1), M.window, cx, b.y1 - 1.8, zf + 0.01)
+    const cap = new THREE.ConeGeometry(w * 0.85, 1.6, 4); put(cap, M.crimson, cx, b.y1 + 0.8, zb + dep / 2, 0, Math.PI / 4, 0)
+    put(new THREE.SphereGeometry(0.22, 8, 6), M.gold, cx, b.y1 + 1.75, zb + dep / 2)
   }
   for (const s of C.snags) {
     if (s.type !== 'post') continue
     if (s.what === 'tree') {
-      const g = new THREE.Group(); g.position.set(s.x, s.y - s.h / 2, 0)
-      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.24, s.h, 6), M.darkWood); trunk.position.y = s.h / 2; trunk.castShadow = true; g.add(trunk)
-      for (let k = 0; k < 5; k++) { const c = new THREE.Mesh(new THREE.ConeGeometry(1.5 - k * 0.22, 1.7, 7), M.pine); c.position.y = 1.6 + k * 0.95; c.castShadow = true; g.add(c); const sn = new THREE.Mesh(new THREE.ConeGeometry(1.2 - k * 0.2, 0.5, 7), M.snow); sn.position.y = 2.1 + k * 0.95; g.add(sn) }
-      scene.add(g)
+      put(cyl(0.14, 0.24, s.h), DW, s.x, s.y - s.h / 2 + s.h / 2, 0)
+      for (let k = 0; k < 5; k++) { put(new THREE.ConeGeometry(1.5 - k * 0.22, 1.7, 7), M.pine, s.x, s.y - s.h / 2 + 1.6 + k * 0.95, 0); put(new THREE.ConeGeometry(1.2 - k * 0.2, 0.5, 7), M.snow, s.x, s.y - s.h / 2 + 2.1 + k * 0.95, 0) }
     } else {
-      const sp2 = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.18, s.h, 6), M.gold); sp2.position.set(s.x, s.y, 0.3); sp2.castShadow = true; scene.add(sp2)
-      const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.45, 0.6, 10, 1, true), M.gold); bell.position.set(s.x, s.y - s.h / 2 + 0.4, 0.6); scene.add(bell)
+      put(cyl(0.06, 0.18, s.h), M.gold, s.x, s.y, 0.3)
+      put(new THREE.CylinderGeometry(0.25, 0.45, 0.6, 10, 1, true), M.gold, s.x, s.y - s.h / 2 + 0.4, 0.6)
     }
   }
+  // まとめて置く
+  const { mergeGeometries } = await import('../vendor/jsm/utils/BufferGeometryUtils.js')
+  for (const { mat, sh, list } of parts.values()) {
+    for (let i = 0; i < list.length; i += 400) {
+      const g = mergeGeometries(list.slice(i, i + 400), false); if (!g) continue
+      const m = new THREE.Mesh(g, mat); m.castShadow = sh; m.receiveShadow = true; scene.add(m)
+    }
+  }
+
   const mills = C.snags.filter(s => s.type === 'mill').map(s => {
     const g = new THREE.Group(); g.position.set(s.x, s.y, 0.6)
     for (let i = 0; i < s.n; i++) {
@@ -282,6 +431,11 @@ export async function makeView(C, el, opt = {}) {
   // ---- 祈りの旗（綱にずらり。向きと揺れは wind() そのもの。色の並びと形だけで、文字は入れない） ----
   const flagLines = []
   for (const b of C.solids.filter(b => (b.kind === 'rock' || b.kind === 'wood') && b.x1 - b.x0 >= 6 && b.x1 - b.x0 < 30)) flagLines.push({ x0: b.x0 + 0.4, y0: b.y1 + 3.4, x1: b.x1 - 0.4, y1: b.y1 + 2.3 + (b.x1 - b.x0) * 0.04, z: WALLZ + 1.1 })
+  // 山肌に張りわたした長い列（遊ぶ面より奥。B のように重ねて密度を出す）
+  for (let y = 4; y < top + 10; y += 7 + rnd() * 5) {
+    const x0 = -30 + rnd() * 40, len = 10 + rnd() * 16, x1 = Math.min(34, x0 + len), y1 = y + (rnd() - 0.5) * 6
+    flagLines.push({ x0, y0: y, x1, y1, z: Math.max(cliffZ(x0, y), cliffZ(x1, y1)) + 1.3 + rnd() * 1.2 })
+  }
   for (const p of C.props.filter(p => p.type === 'flagpole')) flagLines.push({ x0: p.x, y0: p.y + 4.6, x1: p.x + (p.x < 0 ? 5 : -5), y1: p.y + 0.3, z: WALLZ + 2.6, pole: true })
   const flagList = []
   for (const L of flagLines) {
@@ -344,6 +498,16 @@ export async function makeView(C, el, opt = {}) {
   streaks.frustumCulled = false; scene.add(streaks)
   const st = Array.from({ length: NST }, () => ({ x: 0, y: 0, z: 0, life: -1, m: 1 }))
 
+  // 雪の吹き出し（棚と屋根の縁から、風下へ煙のように）
+  const edges = C.solids.filter(b => b.kind !== 'wood').map(b => ({ x0: b.x0, x1: b.x1, y: b.y1 + 0.15 }))
+  const NP = low ? 160 : 320, ppos = new Float32Array(NP * 3), pal = new Float32Array(NP), psz = new Float32Array(NP)
+  const pgeo = new THREE.BufferGeometry(); pgeo.setAttribute('position', new THREE.BufferAttribute(ppos, 3)); pgeo.setAttribute('a', new THREE.BufferAttribute(pal, 1)); pgeo.setAttribute('sz', new THREE.BufferAttribute(psz, 1))
+  const pmat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { map: { value: softTex }, scale: { value: 300 } },
+    vertexShader: 'attribute float a; attribute float sz; varying float va; uniform float scale; void main(){ va = a; vec4 mv = modelViewMatrix * vec4(position,1.0); gl_PointSize = sz * scale / -mv.z; gl_Position = projectionMatrix * mv; }',
+    fragmentShader: 'uniform sampler2D map; varying float va; void main(){ vec4 c = texture2D(map, gl_PointCoord); gl_FragColor = vec4(vec3(0.97,0.98,1.0), c.a * va); }' })
+  const plume = new THREE.Points(pgeo, pmat); plume.frustumCulled = false; scene.add(plume)
+  const pp = Array.from({ length: NP }, () => ({ x: 0, y: 0, z: 0, vx: 0, vy: 0, life: 0, max: 1 }))
+  let pi = 0
   // 雷雲
   const storms = C.storms.map(z => {
     const g = new THREE.Group()
@@ -387,17 +551,45 @@ export async function makeView(C, el, opt = {}) {
   } else {
     const fb = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 0.9, 4, 8), new THREE.MeshStandardMaterial({ color: 0x5a3a2a })); fb.position.y = 0.3; body.add(fb)
   }
+  // ---- 旅人の装い: 毛皮の外套・えり巻き（マフラー）・ブーツ ----
+  const furTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d'); g.fillStyle = '#4e3626'; g.fillRect(0, 0, 256, 256)
+    for (let i = 0; i < 2600; i++) { const x = rnd() * 256, y = rnd() * 256, l = 6 + rnd() * 14, v = rnd(); g.strokeStyle = v < 0.5 ? `rgba(30,20,14,${0.35 + v * 0.4})` : `rgba(150,118,86,${0.2 + (v - 0.5) * 0.5})`; g.lineWidth = 1 + rnd() * 1.5; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rnd() - 0.5) * 4, y + l); g.stroke() }
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 2); t.colorSpace = THREE.SRGBColorSpace; return t })()
+  const furMat = new THREE.MeshStandardMaterial({ map: furTex, bumpMap: furTex, bumpScale: 2, roughness: 1, side: THREE.DoubleSide })
+  const outfit = new THREE.Group(); scene.add(outfit)
+  { // 外套（肩から膝まで。裾がふくらむ）
+    const pts = []; for (let i = 0; i <= 12; i++) { const t = i / 12; pts.push(new THREE.Vector2(0.2 + t * 0.2 + Math.sin(t * 9) * 0.012, -t * 0.95)) }
+    const coat = new THREE.Mesh(new THREE.LatheGeometry(pts, 18), furMat); coat.castShadow = true; coat.name = 'coat'; outfit.add(coat)
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.085, 8, 16), furMat); collar.rotation.x = Math.PI / 2; collar.position.y = 0.02; collar.castShadow = true; outfit.add(collar)
+    const hood = new THREE.Mesh(new THREE.SphereGeometry(0.17, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), furMat); hood.position.set(0, 0.26, -0.02); hood.scale.set(1, 1.05, 1.05); hood.castShadow = true; outfit.add(hood)
+  }
+  const scarfMat = new THREE.MeshStandardMaterial({ color: 0x9b1620, roughness: 0.9, side: THREE.DoubleSide })
+  const scarf = (() => { const n = 10, pts = Array.from({ length: n }, () => new THREE.Vector3()), prev = pts.map(v => v.clone()), geo = new THREE.BufferGeometry(), pos = new Float32Array(n * 6), idx = []
+    for (let i = 0; i < n - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2) }
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setIndex(idx); const m = new THREE.Mesh(geo, scarfMat); m.frustumCulled = false; m.castShadow = true; scene.add(m)
+    const knot = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.05, 6, 14), scarfMat); knot.rotation.x = Math.PI / 2; outfit.add(knot); knot.position.y = 0.06
+    return { pts, prev, pos, geo, init: false } })()
+  if (rig) rig.traverse(o => { if (o.isMesh && /Feet|Legs/.test(o.name)) for (const m of [].concat(o.material)) { if (/Feet/.test(o.name)) m.color.setHex(0x2a1c14); } })
+  const neckW = new THREE.Vector3(), rigQ = new THREE.Quaternion()
   function play(name, fade = 0.25) { const a = acts[name]; if (!a || curAct === a) return; a.reset().fadeIn(fade).play(); if (curAct) curAct.fadeOut(fade); curAct = a }
 
   // ---- 凧（深紅の菱凧・木の骨・2本の長い尾） ----
   const kite = new THREE.Group(); scene.add(kite)
   const ksh = new THREE.Shape(); ksh.moveTo(0, 1.7); ksh.lineTo(1.35, 0.2); ksh.lineTo(0, -2.1); ksh.lineTo(-1.35, 0.2); ksh.closePath()
   const kgeo = new THREE.ShapeGeometry(ksh, 4)
+  { const p = kgeo.attributes.position, uv = kgeo.attributes.uv; for (let i = 0; i < p.count; i++) uv.setXY(i, (p.getX(i) + 1.35) / 2.7, (p.getY(i) + 2.1) / 3.8) }
   { const p = kgeo.attributes.position; for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i); p.setZ(i, -(1 - Math.min(1, Math.abs(x) / 1.35)) * 0.25 - 0.03 * y) } kgeo.computeVertexNormals() }
-  const kmat = new THREE.MeshStandardMaterial({ color: 0xb3202a, side: THREE.DoubleSide, roughness: 0.62, emissive: 0xff9a40, emissiveIntensity: 0 })
+  const kTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d'); g.fillStyle = '#8f141d'; g.fillRect(0, 0, 256, 256)
+    for (let y = 0; y < 256; y += 2) { g.fillStyle = `rgba(0,0,0,${0.05 + (y % 4 ? 0.04 : 0)})`; g.fillRect(0, y, 256, 1) }
+    for (let x = 0; x < 256; x += 2) { g.fillStyle = 'rgba(255,255,255,0.03)'; g.fillRect(x, 0, 1, 256) }
+    for (let i = 0; i < 40; i++) { const gr = g.createLinearGradient(0, 0, 256, 256); g.fillStyle = `rgba(${rnd() < 0.5 ? '0,0,0' : '255,220,220'},${0.03 + rnd() * 0.05})`; g.beginPath(); g.ellipse(rnd() * 256, rnd() * 256, 10 + rnd() * 40, 3 + rnd() * 8, rnd() * 3, 0, 7); g.fill() }
+    g.strokeStyle = 'rgba(40,6,8,0.55)'; g.lineWidth = 6; g.strokeRect(3, 3, 250, 250)
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t })()
+  const kmat = new THREE.MeshStandardMaterial({ map: kTex, color: 0xffffff, side: THREE.DoubleSide, roughness: 0.85, sheen: 0, emissive: 0xff7030, emissiveIntensity: 0 })
+  const bamboo = new THREE.MeshStandardMaterial({ color: 0xc9a868, roughness: 0.55 })
   const kmesh = new THREE.Mesh(kgeo, kmat); kmesh.castShadow = true; kite.add(kmesh)
-  const spar1 = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 3.8, 5), M.darkWood); spar1.position.set(0, -0.2, 0.06); kite.add(spar1)
-  const spar2 = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.7, 5), M.darkWood); spar2.rotation.z = Math.PI / 2; spar2.position.set(0, 0.2, 0.06); kite.add(spar2)
+  const spar1 = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 3.8, 6), bamboo); spar1.position.set(0, -0.2, 0.06); kite.add(spar1)
+  const spar2 = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.7, 6), bamboo); spar2.rotation.z = Math.PI / 2; spar2.position.set(0, 0.2, 0.06); kite.add(spar2)
   const tails = [0, 1].map(k => {
     const n = 14, pts = Array.from({ length: n }, () => new THREE.Vector3()), prev = pts.map(v => v.clone())
     const geo = new THREE.BufferGeometry(), pos = new Float32Array(n * 2 * 3), idx = []
@@ -446,23 +638,27 @@ export async function makeView(C, el, opt = {}) {
   await Promise.all([envP, ...loads])
 
   const tmpW = [0, 0], m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e3 = new THREE.Euler(), v3 = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1)
-  let kfx = 0, kfy = 0, kfInit = false, init = false, flash = 0, face = 1
+  let kfx = 0, kfy = 0, kfInit = false, init = false, flash = 0, face = 1, camD = 16, camSide = -1
   function render(s, dt) {
     const t = s.t
     const [kx, ky] = kitePos(s)
     const flying = s.kite === 'flying'
     // カメラ: 体と凧の間を、少し下から見上げる（B の絵の構図）
-    const fx = flying ? s.x * 0.75 + kx * 0.25 : s.x, fy = flying ? s.y * 0.72 + ky * 0.28 + 1 : s.y + 3
+    const fx = flying ? s.x * 0.7 + kx * 0.3 : s.x, fy = flying ? s.y * 0.66 + ky * 0.34 + 0.6 : s.y + 2
     const k = 1 - Math.exp(-dt * 2.6)
     if (!init) { camX = fx; camY = fy; init = true }
     camX += (fx - camX) * k; camY += (fy - camY) * k
     // 斜め（右手前）から見る: 岩壁が奥へ流れ、右に空と遠くの山並みが見える
-    const up = aspect < 1 ? 3 : 1.2, dist = aspect < 1 ? 27 + 4 * (1 - aspect) : 24
-    cam.position.set(camX + dist * 0.42, camY + up - 3.5, dist * 0.92)
-    cam.lookAt(camX + 1.5, camY + up, 0)
+    // 人物と凧が主役になる距離。糸が長い時だけ引く。山の中央の側から斜めに、少し下から見上げる
+    const Lf = flying ? s.L : 6
+    camD += ((aspect < 1 ? 15 : 11.5) + Lf * (aspect < 1 ? 0.55 : 0.42) - camD) * (1 - Math.exp(-dt * 1.5))
+    const side = -Math.max(-1, Math.min(1, camX / 14))   // 右端にいる時は左から、左端では右から
+    camSide += (side - camSide) * (1 - Math.exp(-dt * 0.8))
+    const up = aspect < 1 ? 2.2 : 1.0
+    cam.position.set(camX + camD * 0.62 * camSide, camY + up - 3.2, camD * 0.78)
+    cam.lookAt(camX - camSide * 1.2, camY + up + 0.8, 0)
     sun.position.set(camX + 26, camY + 44, 40); sun.target.position.set(camX, camY, 0)
     sky.position.copy(cam.position)
-    pano.position.set(cam.position.x * 0.9, camY * 0.6 + 40, cam.position.z)
     for (const sea of seas) sea.position.x = camX * 0.2
 
     // 人
@@ -484,6 +680,18 @@ export async function makeView(C, el, opt = {}) {
         if (!s.ground) for (const side of ['L', 'R']) { const ul = B['UpperLeg.' + side]; if (ul) ul.rotation.x = Math.sin(t * 2 + (side === 'L' ? 0 : 1.6)) * 0.2 + 0.12 }
       }
       body.rotation.z = s.ground ? 0 : s.beta * 0.9
+      const nb = B['Neck'] || B['Chest']
+      if (nb) { nb.getWorldPosition(neckW); rig.getWorldQuaternion(rigQ); outfit.position.copy(neckW); outfit.quaternion.copy(rigQ); outfit.position.y -= 0.04 }
+      // えり巻き: 首から風下へなびく
+      const P = scarf.pts, Pv = scarf.prev
+      if (!scarf.init) { for (let i = 0; i < P.length; i++) { P[i].copy(neckW); P[i].y -= i * 0.12; Pv[i].copy(P[i]) } scarf.init = true }
+      wind(C, s.x, s.y + 1, t, tmpW)
+      P[0].copy(neckW); P[0].z += 0.12
+      const d2 = Math.min(dt, 0.05) ** 2
+      for (let i = 1; i < P.length; i++) { const p = P[i], pv = Pv[i], vx = (p.x - pv.x) * 0.9, vy = (p.y - pv.y) * 0.9, vz = (p.z - pv.z) * 0.9; pv.copy(p); p.x += vx + (tmpW[0] - s.vx) * d2 * 5; p.y += vy - 6 * d2 + (tmpW[1] - s.vy) * d2 * 5; p.z += vz + Math.sin(t * 8 + i) * 0.004 }
+      for (let it = 0; it < 3; it++) for (let i = 1; i < P.length; i++) { const a = P[i - 1], b = P[i]; const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z, l = Math.hypot(dx, dy, dz) || 1, k2 = (l - 0.13) / l; b.x -= dx * k2; b.y -= dy * k2; b.z -= dz * k2 }
+      for (let i = 0; i < P.length; i++) { const w = 0.08; scarf.pos.set([P[i].x, P[i].y + w, P[i].z, P[i].x, P[i].y - w, P[i].z], i * 6) }
+      scarf.geo.attributes.position.needsUpdate = true; scarf.geo.computeVertexNormals()
     }
     // 凧
     let kx2 = kx, ky2 = ky
@@ -603,6 +811,24 @@ export async function makeView(C, el, opt = {}) {
     }
     stgeo.attributes.position.needsUpdate = true
     flash = Math.max(0, flash - dt * 4)
+    // 吹き出し: 近くの縁から、風が強い所だけ出す
+    for (let k = 0; k < 6; k++) {
+      const e = edges[Math.floor(rnd() * edges.length)]; if (Math.abs(e.y - camY) > 22) continue
+      const ex = e.x0 + rnd() * (e.x1 - e.x0); if (Math.abs(ex - camX) > 30) continue
+      wind(C, ex, e.y + 0.5, t, tmpW); const sp2 = Math.hypot(tmpW[0], tmpW[1]); if (sp2 < 5.5) continue
+      const q3 = pp[pi]; pi = (pi + 1) % NP
+      Object.assign(q3, { x: ex, y: e.y, z: -1 + rnd() * 3, vx: tmpW[0] * 0.8, vy: tmpW[1] * 0.8 + 0.8, life: 1.4 + rnd(), max: 1.4 + rnd(), str: Math.min(1, (sp2 - 5.5) / 5) })
+      q3.max = q3.life
+    }
+    for (let i = 0; i < NP; i++) {
+      const q3 = pp[i]
+      if (q3.life > 0) { q3.life -= dt; q3.x += q3.vx * dt; q3.y += q3.vy * dt; q3.vy -= 0.4 * dt }
+      const u = q3.life > 0 ? 1 - q3.life / q3.max : 1
+      ppos[i * 3] = q3.x; ppos[i * 3 + 1] = q3.y; ppos[i * 3 + 2] = q3.z
+      pal[i] = q3.life > 0 ? Math.sin(Math.min(1, u * 1.2) * Math.PI) * 0.45 * (q3.str || 0) : 0
+      psz[i] = 0.6 + u * 3.2
+    }
+    pgeo.attributes.position.needsUpdate = true; pgeo.attributes.a.needsUpdate = true; pgeo.attributes.sz.needsUpdate = true
     for (const sm of storms) {
       const on = stormOn(sm.z, t), u = ((t - sm.z.phase) % sm.z.period + sm.z.period) % sm.z.period, warn = u > sm.z.period - 1.6
       sm.mat.color.setHex(on ? 0xd8dcff : warn && Math.floor(t * 9) % 2 ? 0x7a8299 : 0x4a5163)
