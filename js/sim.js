@@ -12,8 +12,8 @@ export const K = {
   drag: 0.07,       // 空気の抵抗（体）
   Lmin: 3, Lmax: 26, reelIn: 4.5, reelOut: 3.2, launchL: 8, startL: 18,
   win: 80 * Math.PI / 180,  // 凧が飛べる範囲（風下から左右に）
-  A1: 6.5,          // この見かけの風で、真ん中の引きが体重と同じ
-  Tcap: 3.4, stallA: 3.2,
+  A1: 6.0,          // この見かけの風で、真ん中の引きが体重と同じ
+  Tcap: 3.4, stallA: 2.6,
   stepUp: 0.62, abyss: -24,
   vf: 0.8,          // 体の速さがどれだけ凧の見かけの風を減らすか（糸の伸びで半分）
 }
@@ -72,6 +72,8 @@ export function wind(C, x, y, t, out = [0, 0]) {
       default: break
     }
   }
+  // 山の縁では外向きの風が回り込んで弱まる（縁から吹き飛ばされにくい）
+  if (wx * x > 0) wx *= 1 - 0.85 * sstep(29, 36, Math.abs(x))
   // 岩山の外は吹き下ろし（外へ出た凧は落ちる）
   const ex = Math.abs(x) - (C.edge ?? 37)
   if (ex > -2) { const w = sstep(-2, 3, ex); wx *= 1 - w; wy = wy * (1 - w) - 11 * w }

@@ -1,9 +1,9 @@
-import { COURSE as C } from './course.js?v=3'
-import { newState, step, respawn, DT, K, angDiff } from './sim.js?v=3'
-import { makeView } from './view.js?v=3'
-import { makeTutorial } from './tutorial.js?v=3'
-import { Snd } from './sfx.js?v=3'
-import { wind } from './sim.js?v=3'
+import { COURSE as C } from './course.js?v=4'
+import { newState, step, respawn, DT, K, angDiff } from './sim.js?v=4'
+import { makeView } from './view.js?v=4'
+import { makeTutorial } from './tutorial.js?v=4'
+import { Snd } from './sfx.js?v=4'
+import { wind } from './sim.js?v=4'
 
 const $ = id => document.getElementById(id)
 const qs = new URLSearchParams(location.search)

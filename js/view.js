@@ -3,7 +3,7 @@
 import * as THREE from 'three'
 import { HDRLoader } from '../vendor/jsm/loaders/HDRLoader.js'
 import { GLTFLoader } from '../vendor/jsm/loaders/GLTFLoader.js'
-import { wind, stormOn, K, kitePos } from './sim.js?v=3'
+import { wind, stormOn, pulse, K, kitePos } from './sim.js?v=4'
 
 // B の絵から抜いた色（固定）
 export const PAL = {
@@ -124,7 +124,7 @@ export async function makeView(C, el, opt = {}) {
   const M = {
     cliff: snowy(T.rockD, T.rockN, T.rockR, { snow: 0.5, sat: 0.12, tint: 0xb5bcc8 }),
     rock: snowy(T.rockD, T.rockN, T.rockR, { snow: 0.55, sat: 0.15, tint: 0xc0c5ce }),
-    strata: snowy(T.cliffD, T.cliffN, T.cliffR, { snow: 0.7, sat: 0.1, tint: 0xeef2f8 }),
+    strata: snowy(T.cliffD, T.cliffN, T.cliffR, { snow: 0.72, sat: 0.2, tint: 0xf4efe8 }),
     band: new THREE.MeshStandardMaterial({ color: 0x6e2a22, roughness: 0.8 }),
     clothR: new THREE.MeshStandardMaterial({ color: 0x8e1d22, side: THREE.DoubleSide, roughness: 1 }),
     clothB: new THREE.MeshStandardMaterial({ color: 0x2e4f8e, side: THREE.DoubleSide, roughness: 1 }),
@@ -380,6 +380,16 @@ export async function makeView(C, el, opt = {}) {
     if (bi % 3 === 0) cave(left ? x0 + bw + 3 : x0 - 3, b.y1, 2.4)
     bi++
   }
+  // 頂の祠（白い仏塔と金の尖塔）
+  for (const p of C.props.filter(p => p.type === 'shrine')) {
+    const z = -2.2
+    put(box(3.2, 0.8, 3.2, 2), M.block, p.x, p.y + 0.4, z)
+    put(box(2.4, 0.6, 2.4, 2), WHITE, p.x, p.y + 1.1, z)
+    put(new THREE.SphereGeometry(1.15, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), WHITE, p.x, p.y + 1.4, z)
+    put(box(0.7, 0.5, 0.7), BAND, p.x, p.y + 2.75, z)
+    put(new THREE.ConeGeometry(0.32, 1.8, 8), M.gold, p.x, p.y + 3.9, z)
+    put(new THREE.SphereGeometry(0.16, 8, 6), M.gold, p.x, p.y + 4.9, z)
+  }
   // 吊り橋（背景。谷の上や棚と棚の間）
   for (const p of C.props.filter(p => p.type === 'bridge')) bridge(p.x, p.y + 6, p.x1, p.y1 + 6, -2.6)
   bridge(-22, 47, -6, 50, -3.6)
@@ -398,6 +408,7 @@ export async function makeView(C, el, opt = {}) {
   }
   for (const s of C.snags) {
     if (s.type !== 'post') continue
+    if (s.pole) { put(cyl(s.r * 0.8, s.r * 1.2, s.h, 8), DW, s.x, s.y, 0.4); continue }
     if (s.what === 'tree') {
       put(cyl(0.14, 0.24, s.h), DW, s.x, s.y - s.h / 2 + s.h / 2, 0)
       for (let k = 0; k < 5; k++) { put(new THREE.ConeGeometry(1.5 - k * 0.22, 1.7, 7), M.pine, s.x, s.y - s.h / 2 + 1.6 + k * 0.95, 0); put(new THREE.ConeGeometry(1.2 - k * 0.2, 0.5, 7), M.snow, s.x, s.y - s.h / 2 + 2.1 + k * 0.95, 0) }
@@ -508,13 +519,14 @@ export async function makeView(C, el, opt = {}) {
   const plume = new THREE.Points(pgeo, pmat); plume.frustumCulled = false; scene.add(plume)
   const pp = Array.from({ length: NP }, () => ({ x: 0, y: 0, z: 0, vx: 0, vy: 0, life: 0, max: 1 }))
   let pi = 0
+  const gusts = C.zones.filter(z => z.type === 'gust')
   // 雷雲
   const storms = C.storms.map(z => {
     const g = new THREE.Group()
     const n = 30, geo = new THREE.BufferGeometry(), pos = new Float32Array(n * 3)
     for (let i = 0; i < n; i++) { pos[i * 3] = z.x0 + rnd() * (z.x1 - z.x0); pos[i * 3 + 1] = z.y0 + 1 + rnd() * (z.y1 - z.y0 - 1); pos[i * 3 + 2] = -1 + rnd() * 3 }
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
-    const mat = new THREE.PointsMaterial({ map: softTex, color: 0x50586a, size: 10, transparent: true, opacity: 0.8, depthWrite: false })
+    const mat = new THREE.PointsMaterial({ map: softTex, color: 0x50586a, size: 8, transparent: true, opacity: 0.55, depthWrite: false })
     const pts = new THREE.Points(geo, mat); pts.frustumCulled = false; g.add(pts)
     const bolt = new THREE.Line(new THREE.BufferGeometry().setFromPoints(Array.from({ length: 9 }, (_, i) => new THREE.Vector3((z.x0 + z.x1) / 2 + (rnd() - 0.5) * 3, z.y1 - i * (z.y1 - z.y0 + 6) / 8, 0.5))), new THREE.LineBasicMaterial({ color: 0xf2f0ff }))
     bolt.visible = false; g.add(bolt)
@@ -644,18 +656,21 @@ export async function makeView(C, el, opt = {}) {
     const [kx, ky] = kitePos(s)
     const flying = s.kite === 'flying'
     // カメラ: 体と凧の間を、少し下から見上げる（B の絵の構図）
-    const fx = flying ? s.x * 0.7 + kx * 0.3 : s.x, fy = flying ? s.y * 0.66 + ky * 0.34 + 0.6 : s.y + 2
+    // 体と凧の両方が入る位置と距離（体寄り）。体は画面の下の操作ボタンより上に来るようにする
+    const kxv = flying ? kx : s.x, kyv = flying ? ky : s.y + 3
+    const fx = s.x * 0.6 + kxv * 0.4, fy = s.y * 0.6 + kyv * 0.4 + (aspect < 1 ? -1.2 : 0.3)
     const k = 1 - Math.exp(-dt * 2.6)
     if (!init) { camX = fx; camY = fy; init = true }
     camX += (fx - camX) * k; camY += (fy - camY) * k
-    // 斜め（右手前）から見る: 岩壁が奥へ流れ、右に空と遠くの山並みが見える
-    // 人物と凧が主役になる距離。糸が長い時だけ引く。山の中央の側から斜めに、少し下から見上げる
-    const Lf = flying ? s.L : 6
-    camD += ((aspect < 1 ? 15 : 11.5) + Lf * (aspect < 1 ? 0.55 : 0.42) - camD) * (1 - Math.exp(-dt * 1.5))
+    const tf = Math.tan(cam.fov * Math.PI / 360)
+    const needH = (Math.abs(kyv - s.y) + 7) / 2 / tf, needW = (Math.abs(kxv - s.x) + (aspect < 1 ? 9 : 7)) / 2 / (tf * aspect)
+    const want = Math.max(aspect < 1 ? 12 : 10, needH * 0.95, needW * (aspect < 1 ? 1.15 : 0.95))
+    camD += (want - camD) * (1 - Math.exp(-dt * 1.5))
     const side = -Math.max(-1, Math.min(1, camX / 14))   // 右端にいる時は左から、左端では右から
     camSide += (side - camSide) * (1 - Math.exp(-dt * 0.8))
     const up = aspect < 1 ? 2.2 : 1.0
-    cam.position.set(camX + camD * 0.62 * camSide, camY + up - 3.2, camD * 0.78)
+    const yaw = aspect < 1 ? 0.38 : 0.62
+    cam.position.set(camX + camD * yaw * camSide, camY + up - 3.2, camD * (aspect < 1 ? 0.92 : 0.78))
     cam.lookAt(camX - camSide * 1.2, camY + up + 0.8, 0)
     sun.position.set(camX + 26, camY + 44, 40); sun.target.position.set(camX, camY, 0)
     sky.position.copy(cam.position)
@@ -733,7 +748,7 @@ export async function makeView(C, el, opt = {}) {
     const lift = flying ? s.lift : 0
     const gold = Math.max(0, Math.min(1, (lift - 0.9) / 0.2)), taut = Math.max(0, Math.min(1, (s.T - 0.3) / 0.5))
     lmat.color.copy(cSlack).lerp(cWhite, taut).lerp(cGold, gold)
-    const wdt = 0.03 + 0.04 * taut + 0.05 * gold
+    const wdt = 0.018 + 0.014 * taut + 0.02 * gold
     for (let i = 0; i < NL; i++) {
       const a = lpts[Math.max(0, i - 1)], b = lpts[Math.min(NL - 1, i + 1)]
       let nx = -(b[1] - a[1]), ny = b[0] - a[0]; const l = Math.hypot(nx, ny) || 1; nx /= l; ny /= l
@@ -820,13 +835,20 @@ export async function makeView(C, el, opt = {}) {
       Object.assign(q3, { x: ex, y: e.y, z: -1 + rnd() * 3, vx: tmpW[0] * 0.8, vy: tmpW[1] * 0.8 + 0.8, life: 1.4 + rnd(), max: 1.4 + rnd(), str: Math.min(1, (sp2 - 5.5) / 5) })
       q3.max = q3.life
     }
+    // 突風の前ぶれ: 来る1秒前から、突風の帯の下で粉雪が舞い上がり始める
+    for (const z of gusts) {
+      if (Math.abs((z.y0 + z.y1) / 2 - camY) > 30) continue
+      const soon = pulse(t + 1.0, z.period, z.phase, z.dur), now = pulse(t, z.period, z.phase, z.dur)
+      const n = Math.round((soon * 0.6 + now) * 3)
+      for (let k = 0; k < n; k++) { const q3 = pp[pi]; pi = (pi + 1) % NP; Object.assign(q3, { x: z.x0 + rnd() * (z.x1 - z.x0), y: z.y0 + rnd() * 2, z: -1.5 + rnd() * 3, vx: (rnd() - 0.5) * 2, vy: 4 + now * 9, life: 1.6, max: 1.6, str: 0.9 }) }
+    }
     for (let i = 0; i < NP; i++) {
       const q3 = pp[i]
       if (q3.life > 0) { q3.life -= dt; q3.x += q3.vx * dt; q3.y += q3.vy * dt; q3.vy -= 0.4 * dt }
       const u = q3.life > 0 ? 1 - q3.life / q3.max : 1
       ppos[i * 3] = q3.x; ppos[i * 3 + 1] = q3.y; ppos[i * 3 + 2] = q3.z
       pal[i] = q3.life > 0 ? Math.sin(Math.min(1, u * 1.2) * Math.PI) * 0.45 * (q3.str || 0) : 0
-      psz[i] = 0.6 + u * 3.2
+      psz[i] = 0.4 + u * 2.2
     }
     pgeo.attributes.position.needsUpdate = true; pgeo.attributes.a.needsUpdate = true; pgeo.attributes.sz.needsUpdate = true
     for (const sm of storms) {

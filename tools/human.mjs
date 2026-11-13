@@ -19,9 +19,10 @@ const ACTS = []; for (const st of [-1, 0, 1]) for (const r of [0, 1]) ACTS.push(
 const clone = s => ({ ...s, ev: [] })
 function progress(s, k0) {
   if (s.flag > sec) return 1e6
-  let best = -1, nd = 1e9
-  for (let k = Math.max(0, k0 - 20); k < Math.min(ref.length, k0 + 120); k++) { const d = Math.hypot(s.x - ref[k][0], s.y - ref[k][1]); if (d < 2.2 && k > best) best = k; if (d < nd) nd = d }
-  return best >= 0 ? best * 1 - s.resets * 1e4 : k0 - nd * 6 - s.resets * 1e4
+  // 道筋のどこにいるか（前後どこでも。覚えた道に戻れば続きから）
+  let best = -1, nd = 1e9, nk = 0
+  for (let k = 0; k < Math.min(ref.length, k0 + 120); k++) { const d = Math.hypot(s.x - ref[k][0], s.y - ref[k][1]); if (d < 2.2 && k > best) best = k; if (d < nd) { nd = d; nk = k } }
+  return best >= 0 ? best * 1 - s.resets * 1e4 : nk - nd * 6 - s.resets * 1e4
 }
 function plan(s0, k0) {
   let beam = [{ s: clone(s0), first: -1, sc: 0 }]
@@ -48,7 +49,7 @@ for (let trial = 0; trial < N; trial++) {
   let ok = false
   for (let f = 0; f < limit; f++) {
     if (f % 24 === 0) {
-      const sc = progress(s, k); if (sc >= 0 && sc < 1e6) k = Math.max(k, Math.floor(sc))
+      const sc = progress(s, k); if (sc >= 0 && sc < 1e6) k = Math.floor(sc)
       if (EASY || rnd() > 0.1) {
         // 人は反応が遅れるぶん、少し先の自分を見越して決める（今の入力のまま遅れの間だけ進めた所から読む）
         const delay = EASY ? 0 : Math.round((0.2 + rnd() * 0.15) * 60)

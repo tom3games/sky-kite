@@ -88,9 +88,9 @@ for (const bt of [chromium, webkit]) {
     expect(r.y > 30 && r.resets === 1, JSON.stringify(r)); return r
   })
   await t(`${B}: 頂上の記録を流すと結果画面とポスト`, async () => {
-    const rec = JSON.parse(readFileSync('tools/rec_7.json'))
-    await p.evaluate(rec => { sky.start(); sky.replay(rec, 7) }, rec)
-    await p.waitForFunction(() => !document.getElementById('goal').hidden, null, { timeout: 60000, polling: 200 })
+    const rec = JSON.parse(readFileSync('tools/rec_9.json'))
+    await p.evaluate(rec => { sky.start(); sky.replay(rec, 9) }, rec)
+    await p.waitForFunction(() => !document.getElementById('goal').hidden, null, { timeout: 240000, polling: 200 })
     const r = await p.evaluate(() => ({ txt: document.getElementById('goalTxt').textContent, post: document.getElementById('gPost').href.slice(0, 40) }))
     expect(/x\.com\/intent\/post/.test(r.post), JSON.stringify(r)); return r
   })
@@ -98,6 +98,12 @@ for (const bt of [chromium, webkit]) {
     await p.evaluate(() => { document.getElementById('goal').hidden = true; document.getElementById('title').hidden = false })
     await p.click('#langBtn'); const r = await p.evaluate(() => document.getElementById('startBtn').textContent)
     expect(r === 'Climb', r); return r
+  })
+  await t(`${B}: 山の左右の外へ出ると旗へ戻る`, async () => {
+    await p.evaluate(() => { document.getElementById('goal').hidden = true; sky.s = sky.newState(3); sky.start(); sky.s.x = 44; sky.s.y = 80 })
+    await p.waitForTimeout(2200)
+    const r = await p.evaluate(() => ({ x: +sky.s.x.toFixed(1), resets: sky.s.resets }))
+    expect(r.resets >= 1 && Math.abs(r.x) < 40, JSON.stringify(r)); return r
   })
   await t(`${B}: 最後までエラーなし`, async () => { expect(p.errs.length === 0, p.errs.join('|')) })
   await p.br.close()
