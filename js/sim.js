@@ -8,14 +8,14 @@ export const K = {
   g: 15,            // 重力（少し強めで手ざわりを締める）
   r: 0.42,          // 体の当たりの半径
   hand: 0.55,       // 糸を持つ手の高さ（体の中心から）
-  walk: 3.4, walkFly: 1.6, mu: 1.1,
-  drag: 0.016,      // 空気の抵抗（体）
-  Lmin: 3, Lmax: 32, reelIn: 4.5, reelOut: 6, launchL: 6,
+  walk: 2.6, mu: 1.5,
+  drag: 0.07,       // 空気の抵抗（体）
+  Lmin: 3, Lmax: 34, reelIn: 4.5, reelOut: 3.2, launchL: 8, startL: 18,
   win: 80 * Math.PI / 180,  // 凧が飛べる範囲（風下から左右に）
-  A1: 7.5,          // この見かけの風で、真ん中の引きが体重と同じ
+  A1: 6.5,          // この見かけの風で、真ん中の引きが体重と同じ
   Tcap: 3.4, stallA: 3.2,
   stepUp: 0.62, abyss: -24,
-  vf: 0.5,          // 体の速さがどれだけ凧の見かけの風を減らすか（糸の伸びで半分）
+  vf: 0.8,          // 体の速さがどれだけ凧の見かけの風を減らすか（糸の伸びで半分）
 }
 
 const PI = Math.PI
@@ -53,7 +53,8 @@ export function wind(C, x, y, t, out = [0, 0]) {
   const B = C.bands
   for (let i = 0; i < B.length; i++) {
     const b = B[i]
-    const w = sstep(b.y0 - 2, b.y0 + 2, y) * (1 - sstep(b.y1 - 2, b.y1 + 2, y))
+    let w = sstep(b.y0 - 2, b.y0 + 2, y) * (1 - sstep(b.y1 - 2, b.y1 + 2, y))
+    if (w > 0 && b.x0 != null) w *= sstep(b.x0 - 3, b.x0 + 3, x) * (1 - sstep(b.x1 - 3, b.x1 + 3, x))
     if (w > 0) {
       const gx = b.grad ? 1 + b.grad * clamp((y - b.y0) / (b.y1 - b.y0), 0, 1) : 1
       wx += b.wx * w * gx; wy += (b.wy || 0) * w
@@ -71,6 +72,9 @@ export function wind(C, x, y, t, out = [0, 0]) {
       default: break
     }
   }
+  // 岩山の外は吹き下ろし（外へ出た凧は落ちる）
+  const ex = Math.abs(x) - (C.edge ?? 37)
+  if (ex > -2) { const w = sstep(-2, 3, ex); wx *= 1 - w; wy = wy * (1 - w) - 11 * w }
   out[0] = wx * calm; out[1] = wy * calm
   return out
 }
@@ -126,8 +130,8 @@ export function newState(C, flagIdx = 0) {
   const f = C.flags[flagIdx]
   return {
     t: 0, frame: 0, x: f.x, y: f.y + K.r + 0.01, vx: 0, vy: 0,
-    ground: true, groundT: 0, kite: 'folded', L: K.launchL, phi: PI / 2, reel: 0,
-    T: 0, A: 0, psi: 0, why: '', downT: 0,
+    ground: true, groundT: 0, kite: 'down', L: K.launchL, phi: PI / 2, aim: PI / 2, reel: 0,
+    T: 0, A: 0, psi: 0, why: '', downT: 9, lift: 0,
     flag: flagIdx, best: f.y, maxY: f.y, falls: 0, resets: 0, lastDrop: 0, dropT: 0,
     stun: 0, beta: 0, bv: 0, flagT: 0, sec: C.flags[flagIdx].sec ?? 0, done: false, landV: 0,
     ev: [],  // その刻みで起きた事（音・演出用）
@@ -136,18 +140,17 @@ export function newState(C, flagIdx = 0) {
 
 export function respawn(C, s) {
   const f = C.flags[s.flag]
-  Object.assign(s, { x: f.x, y: f.y + K.r + 0.01, vx: 0, vy: 0, kite: 'folded', L: K.launchL, reel: 0, T: 0, stun: 0, beta: 0, bv: 0, maxY: f.y })
+  Object.assign(s, { x: f.x, y: f.y + K.r + 0.01, vx: 0, vy: 0, kite: 'down', downT: 9, why: '', L: K.launchL, reel: 0, T: 0, stun: 0, beta: 0, bv: 0, maxY: f.y, aim: PI / 2 })
   s.ev.push('respawn')
 }
 
 const W = [0, 0]
-// input: { aim: 角度|null, reel: -1|0|1（+1=巻く）, walk: -1|0|1, toggle: bool }
+// input: { steer: -1..1（+ で凧を右へ振る）, reel: 0|1（押している間は巻く。離すと糸が出る） }
+// 凧はいつも揚がっている。落ちた時は、足場に立ったら 0.8 秒で揚げ直す
 export function step(C, s, inp) {
   s.ev.length = 0
-  if (inp.toggle && s.stun <= 0) {
-    if (s.kite === 'flying') { s.kite = 'folded'; s.ev.push('fold') }
-    else if (s.ground) launch(C, s, inp)
-  }
+  if (s.kite !== 'flying' && s.ground && s.downT > 0.8 && s.stun <= 0) launch(C, s)
+  if (s.stun <= 0) s.aim -= (inp.steer || 0) * 1.0 * DT
   const h = DT / SUB
   for (let i = 0; i < SUB; i++) sub(C, s, inp, h)
   s.t += DT; s.frame++
@@ -172,15 +175,27 @@ export function step(C, s, inp) {
   s.beta += s.bv * DT
 }
 
-function launch(C, s, inp) {
+function launch(C, s) {
   const hx = s.x, hy = s.y + K.hand
   wind(C, hx, hy + 4, s.t, W)
   const psi = Math.atan2(W[1], W[0])
-  let a = inp.aim ?? PI / 2
-  const d = clamp(angDiff(a, psi), -K.win * 0.8, K.win * 0.8)
-  a = psi + d
-  if (Math.sin(a) < 0.25) a = Math.cos(a) >= 0 ? 0.3 : PI - 0.3
-  s.kite = 'flying'; s.L = K.launchL; s.phi = a; s.why = ''
+  // 真上に近い順に、糸が岩に掛からず凧が岩に入らない向きを探す（長さも短い方へ試す）
+  let pick = null, L = 0
+  for (const L0 of [s.downT >= 9 ? K.startL : K.launchL, 6, 4]) {
+  L = L0
+  for (let i = 0; i < 13 && pick == null; i++) {
+    const off = (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.17
+    let a = PI / 2 + off
+    const d = angDiff(a, psi); if (Math.abs(d) > K.win * 0.85) continue
+    if (Math.sin(a) < 0.3) continue
+    const kx = hx + Math.cos(a) * L, ky = hy + Math.sin(a) * L
+    if (pointInSolid(C, kx, ky, 0.4) || lineSnag(C, hx, hy, kx, ky, s.t)) continue
+    pick = a
+  }
+  if (pick != null) break
+  }
+  if (pick == null) { s.downT = 0.3; s.why = 'nowind'; return }
+  s.kite = 'flying'; s.L = L; s.phi = pick; s.aim = pick; s.why = ''
   s.ev.push('launch')
 }
 
@@ -198,13 +213,14 @@ function sub(C, s, inp, h) {
     const ux = Math.cos(s.phi), uy = Math.sin(s.phi)
     let r = 0
     if (s.stun <= 0) {
-      if (inp.reel > 0 && s.L > K.Lmin) { r = K.reelIn; s.L = Math.max(K.Lmin, s.L - r * h) }
-      else if (inp.reel < 0 && s.L < K.Lmax) { r = -K.reelOut; s.L = Math.min(K.Lmax, s.L + K.reelOut * h) }
+      if (inp.reel > 0) { if (s.L > K.Lmin) { r = K.reelIn; s.L = Math.max(K.Lmin, s.L - r * h) } }
+      else if (s.L < K.Lmax) { r = -K.reelOut; s.L = Math.min(K.Lmax, s.L + K.reelOut * h) }
     }
     s.reel = r
     const kx = hx + ux * s.L, ky = hy + uy * s.L
     wind(C, kx, ky, s.t, W)
-    const Ax = W[0] - s.vx * K.vf + r * ux, Ay = W[1] - s.vy * K.vf + r * uy
+    const rr = r > 0 ? r : 0 // 出す時は凧はその場で糸を伸ばすだけ
+    const Ax = W[0] - s.vx * K.vf + rr * ux, Ay = W[1] - s.vy * K.vf + rr * uy
     const A = Math.hypot(Ax, Ay), psi = Math.atan2(Ay, Ax)
     s.A = A; s.psi = psi
     let T = 0
@@ -215,9 +231,12 @@ function sub(C, s, inp, h) {
       T = 0.04
     } else {
       const om = Math.min(3.4, 0.32 * A)
-      let tgt = inp.aim == null ? s.phi : inp.aim
-      let d = angDiff(tgt, psi)
-      d = clamp(d, -K.win, K.win)
+      // 振った向き（aim）は風の窓の中に収める（窓の外へ回し続けても戻りが遅れない）
+      let d = clamp(angDiff(s.aim, psi), -K.win, K.win)
+      s.aim = psi + d
+      if (s.aim < -0.1 && s.aim > -PI / 2) s.aim = -0.1
+      if (s.aim < -PI / 2 || s.aim > PI + 0.1) s.aim = PI + 0.1
+      d = clamp(angDiff(s.aim, psi), -K.win, K.win)
       const want = psi + d
       const cur = angDiff(s.phi, psi)
       const rate = Math.abs(cur) > K.win ? Math.max(om, 2.4) : om
@@ -226,9 +245,12 @@ function sub(C, s, inp, h) {
       // 風下の真ん中で一番強く、端（真上など）でも 4 分の 1 は残る
       const c = 0.25 + 0.75 * Math.max(0, Math.cos(Math.min(dd, PI / 2)))
       const lenF = 0.8 + 0.5 * (s.L - K.Lmin) / (K.Lmax - K.Lmin)
-      T = Math.min(K.Tcap, (A / K.A1) ** 2 * c * lenF)
+      // 体が凧の方へ速く動くと糸がゆるむ（引っぱられて飛ぶ勢いが止まらなくなるのを防ぐ）
+      const toward = s.vx * ux + s.vy * uy - Math.max(0, r)
+      const slack = clamp(1 - (toward - 2) / 6, 0.15, 1)
+      T = Math.min(K.Tcap, (A / K.A1) ** 2 * c * lenF * slack)
     }
-    s.T = T
+    s.T = T; s.lift = T * Math.sin(s.phi)
     ax += g * T * Math.cos(s.phi); ay += g * T * Math.sin(s.phi)
     // 凧が落ちきった・岩に入った・糸が掛かった・雷
     const nkx = hx + Math.cos(s.phi) * s.L, nky = hy + Math.sin(s.phi) * s.L
@@ -239,10 +261,11 @@ function sub(C, s, inp, h) {
   } else if (s.kite === 'down') { s.downT += h }
 
   // 地面と歩き
-  const walkIn = s.stun > 0 ? 0 : inp.walk
+  const st = inp.steer || 0
+  const walkIn = s.stun > 0 ? 0 : (Math.abs(st) > 0.3 ? Math.sign(st) : 0)
   if (s.ground && ay <= 0) {
     const N = -ay
-    const vt = walkIn * (s.kite === 'flying' ? K.walkFly : K.walk)
+    const vt = walkIn * K.walk
     const need = (vt - s.vx) / h - ax
     const lim = K.mu * N + (walkIn ? 0 : 0)
     ax += clamp(need, -lim, lim)

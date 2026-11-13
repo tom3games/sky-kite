@@ -1,6 +1,6 @@
 // 見た目（灰色の箱の試作）。当たりと同じ course の箱から形を作る。
 import * as THREE from 'three'
-import { wind, millBlades, stormOn, K, kitePos } from './sim.js'
+import { wind, millBlades, stormOn, K, kitePos } from './sim.js?v=2'
 
 export function makeView(C, el) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })
@@ -130,10 +130,23 @@ export function makeView(C, el) {
   const folded = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1.6, 0.12), kmesh.material)
   scene.add(folded)
   // 糸（たるみつき）
-  const NL = 24, lgeo = new THREE.BufferGeometry(), lpos = new Float32Array(NL * 3)
-  lgeo.setAttribute('position', new THREE.BufferAttribute(lpos, 3))
-  const line = new THREE.Line(lgeo, new THREE.LineBasicMaterial({ color: 0xf6f2e6 }))
+  // 糸は細い帯（いつもカメラを向く）。張りで色と太さが変わる: たるみ=灰、張り=白、浮ける=金
+  const NL = 24, lgeo = new THREE.BufferGeometry(), lpos = new Float32Array(NL * 2 * 3), lidx = []
+  for (let i = 0; i < NL - 1; i++) { const a = i * 2; lidx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2) }
+  lgeo.setAttribute('position', new THREE.BufferAttribute(lpos, 3)); lgeo.setIndex(lidx)
+  const lmat = new THREE.MeshBasicMaterial({ color: 0xf6f2e6, side: THREE.DoubleSide, transparent: true })
+  const line = new THREE.Mesh(lgeo, lmat)
   line.frustumCulled = false; scene.add(line)
+  const pts = Array.from({ length: NL }, () => [0, 0])
+  // 風の矢印（凧のまわりを風に乗って流れる山形）
+  const chev = []
+  const chevGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-0.35, 0.3, 0), new THREE.Vector3(0.1, 0, 0), new THREE.Vector3(-0.35, -0.3, 0)])
+  for (let i = 0; i < 10; i++) {
+    const m = new THREE.Line(chevGeo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 }))
+    m.userData = { u: i / 10, o: ((i * 37) % 10) / 10 - 0.5 }
+    scene.add(m); chev.push(m)
+  }
+  const cGold = new THREE.Color(0xffc94a), cWhite = new THREE.Color(0xf6f2e6), cSlack = new THREE.Color(0x8d8f93)
 
   let camX = 0, camY = 0, aspect = 1, W0 = 1, H0 = 1
   function resize() {
@@ -193,14 +206,36 @@ export function makeView(C, el) {
     // 糸
     line.visible = flying || s.kite === 'down'
     const hx = s.x + (flying ? Math.cos(s.phi) * 0.45 : 0), hy = s.y + K.hand + 0.2
-    const sag = flying ? Math.max(0, 1.2 - s.T) * s.L * 0.06 : 0.6
+    const sag = flying ? Math.max(0, 0.9 - s.T) * s.L * 0.08 : 0.6
     for (let i = 0; i < NL; i++) {
       const u = i / (NL - 1)
-      lpos[i * 3] = hx + (kfx - hx) * u
-      lpos[i * 3 + 1] = hy + (kfy - hy) * u - sag * 4 * u * (1 - u)
-      lpos[i * 3 + 2] = 0.3 * u
+      pts[i][0] = hx + (kfx - hx) * u; pts[i][1] = hy + (kfy - hy) * u - sag * 4 * u * (1 - u)
+    }
+    // 張りの見せ方
+    const lift = flying ? s.lift : 0
+    const gold = Math.max(0, Math.min(1, (lift - 0.9) / 0.2))
+    const taut = Math.max(0, Math.min(1, (s.T - 0.3) / 0.5))
+    lmat.color.copy(cSlack).lerp(cWhite, taut).lerp(cGold, gold)
+    const wdt = 0.035 + 0.05 * taut + 0.05 * gold
+    for (let i = 0; i < NL; i++) {
+      const a = pts[Math.max(0, i - 1)], b = pts[Math.min(NL - 1, i + 1)]
+      let nx = -(b[1] - a[1]), ny = b[0] - a[0]; const l = Math.hypot(nx, ny) || 1; nx /= l; ny /= l
+      const z = 0.3 * i / (NL - 1)
+      lpos[i * 6] = pts[i][0] + nx * wdt; lpos[i * 6 + 1] = pts[i][1] + ny * wdt; lpos[i * 6 + 2] = z
+      lpos[i * 6 + 3] = pts[i][0] - nx * wdt; lpos[i * 6 + 4] = pts[i][1] - ny * wdt; lpos[i * 6 + 5] = z
     }
     lgeo.attributes.position.needsUpdate = true
+    kmesh.material.emissive.setHex(0xffb040); kmesh.material.emissiveIntensity = gold * (0.25 + 0.15 * Math.sin(t * 10))
+    // 風の矢印
+    wind(C, kfx, kfy, t, tmpW)
+    const ws = Math.hypot(tmpW[0], tmpW[1]), wa = Math.atan2(tmpW[1], tmpW[0])
+    for (const m of chev) {
+      const d = m.userData; d.u = (d.u + dt * (0.25 + ws * 0.05)) % 1
+      const along = (d.u - 0.5) * 9, side = d.o * 7
+      m.position.set(kfx + Math.cos(wa) * along - Math.sin(wa) * side, kfy + Math.sin(wa) * along + Math.cos(wa) * side, 0.6)
+      m.rotation.z = wa
+      m.material.opacity = Math.min(0.75, ws / 10) * Math.sin(d.u * Math.PI) * (flying ? 1 : 0.4)
+    }
 
     // 旗
     for (const fm of flagMeshes) {

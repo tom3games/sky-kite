@@ -27,24 +27,25 @@ body { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none
 #line { position: absolute; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(260px, 50vw); height: 5px; background: rgba(255,255,255,.18); border-radius: 3px; }
 #lineFill { position: absolute; left: 0; top: 0; bottom: 0; background: #fff; border-radius: 3px; }
 #lineTxt { position: absolute; bottom: 9px; left: 0; font-size: 12px; color: var(--dim); white-space: nowrap; text-shadow: 0 1px 3px #000; }
-#msg { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); font: 700 20px/1.3 inherit; text-shadow: 0 2px 6px #000; white-space: nowrap; opacity: 0; transition: opacity .3s; }
+#msg { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); font: 700 18px/1.4 inherit; text-shadow: 0 2px 6px #000; width: max-content; max-width: 88vw; text-align: center; opacity: 0; transition: opacity .3s; }
 #msg.on { opacity: 1; }
 #drop { position: absolute; left: 50%; top: 28%; transform: translateX(-50%); font: 700 28px/1 Georgia, serif; color: #ffb38a; text-shadow: 0 2px 6px #000; opacity: 0; transition: opacity .4s; }
 #drop.on { opacity: 1; }
 #menuBtn { position: absolute; right: 10px; top: max(10px, env(safe-area-inset-top)); width: 40px; height: 40px; padding: 8px; background: rgba(0,0,0,.25); color: #fff; border: 0; border-radius: 50%; pointer-events: auto; }
 
 #touch { position: fixed; inset: 0; z-index: 11; pointer-events: none; }
-#pad { position: absolute; left: 0; top: 0; bottom: 0; width: 50%; pointer-events: auto; touch-action: none; }
-#padRing, #padKnob { position: absolute; border-radius: 50%; display: none; }
-#padRing { width: 120px; height: 120px; margin: -60px; border: 2px solid rgba(255,255,255,.35); }
-#padKnob { width: 52px; height: 52px; margin: -26px; background: rgba(255,255,255,.45); }
-.tb { position: absolute; pointer-events: auto; touch-action: none; width: 76px; height: 76px; border-radius: 50%; border: 2px solid rgba(255,255,255,.45); background: rgba(20,22,25,.45); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; font: 700 11px/1 inherit; padding: 0; }
+#stick { position: absolute; left: calc(18px + env(safe-area-inset-left)); bottom: calc(24px + env(safe-area-inset-bottom)); width: 150px; height: 84px; border-radius: 42px; border: 2px solid rgba(255,255,255,.4); background: rgba(20,24,30,.35); pointer-events: auto; touch-action: none; }
+#stickKnob { position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; margin: -29px; border-radius: 50%; background: rgba(255,255,255,.55); }
+.st-ar { position: absolute; top: 50%; width: 20px; height: 20px; margin-top: -10px; color: rgba(255,255,255,.7); }
+.st-ar.l { left: 10px; } .st-ar.r { right: 10px; }
+.tb { position: absolute; pointer-events: auto; touch-action: none; width: 76px; height: 76px; border-radius: 50%; border: 2px solid rgba(255,255,255,.45); background: rgba(20,22,25,.45); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; font: 700 12px/1 inherit; padding: 0; }
 .tb svg { width: 30px; height: 30px; }
-.tb.big { width: 104px; height: 104px; }
-.tb.big svg { width: 40px; height: 40px; }
-.tb.on { background: rgba(232,195,90,.75); color: #1d1c18; border-color: var(--acc); }
-#bIn { right: 18px; bottom: calc(26px + env(safe-area-inset-bottom)); }
-#bOut { right: 136px; bottom: calc(22px + env(safe-area-inset-bottom)); }
-#bTog { right: 34px; bottom: calc(146px + env(safe-area-inset-bottom)); }
-body.touch #line { bottom: auto; top: max(18px, env(safe-area-inset-top)); }
-body.touch #lineTxt { bottom: auto; top: 9px; }
+.tb.big { width: 112px; height: 112px; }
+.tb.big svg { width: 42px; height: 42px; }
+.tb.on { background: rgba(232,195,90,.8); color: #1d1c18; border-color: var(--acc); }
+#bIn { right: calc(20px + env(safe-area-inset-right)); bottom: calc(24px + env(safe-area-inset-bottom)); }
+.hint { animation: hint 1.1s ease-in-out infinite; }
+@keyframes hint { 50% { box-shadow: 0 0 0 10px rgba(232,195,90,.45); border-color: var(--acc); } }
+#tut { position: fixed; left: 50%; top: max(14px, env(safe-area-inset-top)); transform: translateX(-50%); z-index: 12; display: flex; gap: 10px; align-items: center; padding: 10px 16px; background: rgba(16,20,26,.62); border-left: 3px solid var(--acc); font: 700 16px/1.35 inherit; max-width: min(92vw, 560px); opacity: 0; transition: opacity .3s; pointer-events: none; }
+#tut.on { opacity: 1; }
+#tut kbd { font: 700 13px/1 ui-monospace, monospace; padding: 5px 8px; border: 1px solid rgba(255,255,255,.5); border-radius: 3px; white-space: nowrap; }

@@ -11,12 +11,8 @@ const BEAM = +(process.argv[4] ?? 60)
 const HOLD = +(process.argv[5] ?? 18) // 何刻みごとに選び直すか（18=0.3秒）
 const MAXT = +(process.env.MAXT ?? 120)
 
-const AIMS = [15, 40, 60, 75, 90, 105, 120, 140, 165].map(a => a * D)
 const ACTS = []
-for (const a of AIMS) for (const r of [-1, 0, 1]) ACTS.push({ aim: a, reel: r, walk: 0 })
-ACTS.push({ toggle: 1, aim: 90 * D, reel: 0, walk: 0 }, { walk: 1, reel: 0 }, { walk: -1, reel: 0 })
-for (const a of [40, 90, 140]) ACTS.push({ toggle: 1, aim: a * D, reel: 0, walk: 0, wait: 1 })
-
+for (const st of [-1, 0, 1]) for (const r of [0, 1]) ACTS.push({ steer: st, reel: r })
 const clone = s => ({ ...s, ev: [] })
 const goal = C.flags[to]
 function score(s) {
@@ -27,7 +23,7 @@ function score(s) {
 function run(s, a) {
   const n = HOLD
   for (let i = 0; i < n; i++) {
-    step(C, s, { aim: a.aim ?? null, reel: a.reel || 0, walk: a.walk || 0, toggle: i === 0 && !!a.toggle })
+    step(C, s, { steer: a.steer, reel: a.reel })
     if (s.flag >= to) break
   }
   return s
@@ -41,11 +37,10 @@ for (let depth = 0; depth * HOLD / 60 < MAXT; depth++) {
   for (const b of beam) {
     for (let ai = 0; ai < ACTS.length; ai++) {
       const a = ACTS[ai]
-      if (a.toggle && !b.s.ground && (b.s.kite !== 'flying' || a.wait)) continue
-      if (a.walk && b.s.kite === 'flying' && !b.s.ground) continue
       const s = run(clone(b.s), a)
       if (s.resets > b.s.resets) continue
-      const key = [Math.round(s.x * 2), Math.round(s.y * 2), s.kite, Math.round(s.L / 3), Math.round(s.vx), Math.round(s.vy)].join(',')
+      if (s.y < C.flags[from].y - (+process.env.DROP || 15)) continue
+      const key = [Math.floor(depth / 10), Math.round(s.x * 2), Math.round(s.y * 2), s.kite, Math.round(s.L / 3), Math.round(s.vx), Math.round(s.vy), Math.round(s.aim * 4)].join(',')
       const sc = score(s)
       if (seen.has(key) && seen.get(key) >= sc) continue
       seen.set(key, sc)
@@ -54,7 +49,7 @@ for (let depth = 0; depth * HOLD / 60 < MAXT; depth++) {
   }
   next.sort((a, b) => b.sc - a.sc)
   beam = next.slice(0, BEAM)
-  if (!beam.length) break
+  if (!beam.length) { console.error("empty at", depth); break }
   if (beam[0].s.flag >= to) { best = beam[0]; break }
   if (depth % 20 === 0) { const b = beam[0].s; console.error(`t=${(depth * HOLD / 60).toFixed(1)} best x=${b.x.toFixed(1)} y=${b.y.toFixed(1)} kite=${b.kite} L=${b.L.toFixed(0)} sc=${beam[0].sc.toFixed(1)}`) }
 }

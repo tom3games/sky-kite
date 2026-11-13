@@ -8,14 +8,14 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="SKY KITE">
 <meta property="og:description" content="大きな凧に引かれて岩山を登る。風を読んで糸を出し、巻いて、体を持ち上げる。落ちたら下の足場から。">
-<meta property="og:image" content="https://tom3games.github.io/sky-kite/og.png?v=1">
+<meta property="og:image" content="https://tom3games.github.io/sky-kite/og.png?v=2">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="https://tom3games.github.io/sky-kite/">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#2a2d31">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=1">
+<link rel="stylesheet" href="style.css?v=2">
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
 </head>
 <body>
@@ -28,16 +28,12 @@
     <button id="startBtn" class="start" data-t="start">登る</button>
     <p class="t-note" id="tNote" data-t="proto">試作版（灰色の箱）。操作の手ざわりを見るための版です。</p>
     <div class="t-how" id="howPc">
-      <p><b data-t="h_aim">マウスの向き</b><span data-t="h_aim2">凧を振る</span></p>
-      <p><b data-t="h_in">左クリック</b><span data-t="h_in2">糸を巻く（体が上がる）</span></p>
-      <p><b data-t="h_out">右クリック</b><span data-t="h_out2">糸を出す（凧が高く遠くへ）</span></p>
-      <p><b>Space</b><span data-t="h_tog">揚げる／たたむ</span></p>
-      <p><b>A / D</b><span data-t="h_walk">歩く</span></p>
-      <p><b>R</b><span data-t="h_r">旗へ戻る</span></p>
+      <p><b>Space / クリック</b><span data-t="h_in2">押している間、糸を巻く（体が上がる）。離すと糸が出る</span></p>
+      <p><b>A D / ← →</b><span data-t="h_aim2">凧を左右に振る（足場では歩く）</span></p>
     </div>
     <div class="t-how" id="howTouch" hidden>
-      <p><b data-t="h_pad">左の指</b><span data-t="h_pad2">凧を振る／たたんでいる時は歩く</span></p>
-      <p><b data-t="h_btn">右の指</b><span data-t="h_btn2">巻く・出す・揚げる</span></p>
+      <p><b data-t="h_pad">左下のスティック</b><span data-t="h_aim2b">凧を左右に振る（足場では歩く）</span></p>
+      <p><b data-t="h_btn">右下のボタン</b><span data-t="h_in2b">押している間、糸を巻く。離すと糸が出る</span></p>
     </div>
     <button id="langBtn" class="lang">English</button>
   </div>
@@ -45,18 +41,16 @@
 
 <div id="hud" hidden>
   <div id="alt"><i id="altBest"></i><i id="altNow"></i><span id="altTxt">0m</span></div>
-  <div id="line"><span id="lineTxt"></span><i id="lineFill"></i></div>
   <div id="msg"></div>
   <div id="drop"></div>
   <button id="menuBtn" aria-label="menu"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
 </div>
 
 <div id="touch" hidden>
-  <div id="pad"><div id="padRing"></div><div id="padKnob"></div></div>
-  <button id="bOut" class="tb"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="11" fill="none" stroke="currentColor" stroke-width="3"/><path d="M20 9 v-6 M14 4 l6-3 6 3" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round"/></svg><span data-t="b_out">出す</span></button>
+  <div id="stick"><div id="stickKnob"></div><svg class="st-ar l" viewBox="0 0 20 20"><path d="M13 3 L5 10 L13 17" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><svg class="st-ar r" viewBox="0 0 20 20"><path d="M7 3 L15 10 L7 17" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
   <button id="bIn" class="tb big"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="12" fill="none" stroke="currentColor" stroke-width="3"/><path d="M20 8 a12 12 0 0 1 12 12" stroke="currentColor" stroke-width="5" fill="none"/><path d="M29 12 l3 8 -8 -2" fill="currentColor"/></svg><span data-t="b_in">巻く</span></button>
-  <button id="bTog" class="tb"><svg viewBox="0 0 40 40"><path d="M20 3 L33 16 L20 30 L7 16Z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><path d="M20 30 q-3 4 0 7" stroke="currentColor" stroke-width="2.5" fill="none"/></svg><span id="bTogTxt" data-t="b_up">揚げる</span></button>
 </div>
+<div id="tut"><span id="tutTxt"></span><kbd id="tutKey"></kbd></div>
 
 <section id="menu" class="screen" hidden>
   <div class="t-box">
@@ -75,6 +69,6 @@
   </div>
 </section>
 
-<script type="module" src="js/game.js?v=1"></script>
+<script type="module" src="js/game.js?v=2"></script>
 </body>
 </html>
