@@ -1,7 +1,7 @@
 # Credits
 
 ## Textures (CC0, Poly Haven https://polyhaven.com)
-- rock_face_03, dark_rock_02, rock_wall_08, snow_02, plastered_wall_04, weathered_planks
+- cliff_side, rock_face_03, dark_rock_02, rock_wall_08, snow_02, plastered_wall_04, weathered_planks
 - HDRI: Kloofendal 48d Partly Cloudy (Pure Sky)
 
 ## Model
@@ -18,4 +18,4 @@
 - fire: "WWS Fireoftheforge" — Work With Sounds / La Fonderie (CC BY 4.0) https://commons.wikimedia.org/wiki/File:WWS_Fireoftheforge.ogg
 
 ## Art
-- assets/pano.jpg (distant mountains): original painting made for this game
+- assets/pano.jpg, assets/pano360.jpg (sky and distant mountains): original paintings made for this game

@@ -8,7 +8,7 @@ export const K = {
   g: 15,            // 重力（少し強めで手ざわりを締める）
   r: 0.42,          // 体の当たりの半径
   hand: 0.55,       // 糸を持つ手の高さ（体の中心から）
-  walk: 2.6, mu: 1.5,
+  walk: 2.6, mu: 2.2,
   drag: 0.07,       // 空気の抵抗（体）
   Lmin: 3, Lmax: 26, reelIn: 4.5, reelOut: 3.2, launchL: 8, startL: 18,
   win: 80 * Math.PI / 180,  // 凧が飛べる範囲（風下から左右に）
@@ -163,7 +163,7 @@ export function step(C, s, inp) {
   if (s.ground) {
     for (let i = s.flag + 1; i < C.flags.length; i++) {
       const f = C.flags[i]
-      if (Math.abs(s.x - f.x) < 1.6 && Math.abs(s.y - K.r - f.y) < 0.6) {
+      if (Math.abs(s.x - f.x) < 4.5 && Math.abs(s.y - K.r - f.y) < 0.6) {
         s.flag = i; s.flagT = 2.5; s.sec = f.sec ?? s.sec; s.ev.push('flag')
         if (f.goal && !s.done) { s.done = true; s.ev.push('goal') }
       }
@@ -218,7 +218,8 @@ function sub(C, s, inp, h) {
     let r = 0
     if (s.stun <= 0) {
       if (inp.reel > 0) { if (s.L > K.Lmin) { r = K.reelIn; s.L = Math.max(K.Lmin, s.L - r * h) } }
-      else if (s.L < K.Lmax) { r = -K.reelOut; s.L = Math.min(K.Lmax, s.L + K.reelOut * h) }
+      // 離すと糸が出る。ただし足場で何も押していない時は出さない（休める）
+      else if (s.L < K.Lmax && !(s.ground && Math.abs(inp.steer || 0) < 0.3)) { r = -K.reelOut; s.L = Math.min(K.Lmax, s.L + K.reelOut * h) }
     }
     s.reel = r
     const kx = hx + ux * s.L, ky = hy + uy * s.L
@@ -256,7 +257,9 @@ function sub(C, s, inp, h) {
       T = Math.min(K.Tcap, (A / K.A1) ** 2 * c * lenF * slack)
     }
     s.T = T; s.lift = T * Math.sin(s.phi)
-    ax += g * T * Math.cos(s.phi); ay += g * T * Math.sin(s.phi)
+    // 足場で何も押していない時は踏んばる（横に引かれる力を4割に。上へ引かれる力はそのまま）
+    const brace = s.ground && Math.abs(inp.steer || 0) < 0.3 ? 0.25 : 1
+    ax += g * T * Math.cos(s.phi) * brace; ay += g * T * Math.sin(s.phi)
     // 凧が落ちきった・岩に入った・糸が掛かった・雷
     const nkx = hx + Math.cos(s.phi) * s.L, nky = hy + Math.sin(s.phi) * s.L
     if (s.phi < -0.28 && s.phi > -PI + 0.28) down(s, A < K.stallA ? 'stall' : 'low')
@@ -277,7 +280,7 @@ function sub(C, s, inp, h) {
     const N = -ay
     const vt = walkIn * K.walk
     const need = (vt - s.vx) / h - ax
-    const lim = K.mu * N + (walkIn ? 0 : 0)
+    const lim = K.mu * Math.max(N, walkIn ? 0 : 0.3 * g)
     ax += clamp(need, -lim, lim)
   } else if (!s.ground) {
     const v = Math.hypot(s.vx, s.vy)
