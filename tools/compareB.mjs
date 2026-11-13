@@ -6,7 +6,7 @@ const d = import.meta.dirname + '/../'
 const img = (f, t) => `data:image/${t};base64,` + readFileSync(d + f).toString('base64')
 const html = `<body style="margin:0;background:#151517;font:600 26px 'Hiragino Sans';color:#eee;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
 <div>B コンセプト画（正解）<img src="${img('art/concept_b.png', 'png')}" style="width:100%;display:block;margin-top:8px"></div>
-<div>ゲームの実画面（区間4 僧院の屋根・B と同じ向き）<img src="${img('shots/final_pc.png', 'png')}" style="width:100%;display:block;margin-top:8px"></div>
+<div>ゲームの実画面（区間4 僧院の屋根・B と左右逆の構図）<img src="${img('shots/final_pc.png', 'png')}" style="width:100%;display:block;margin-top:8px"></div>
 <div>実画面（区間0 麓）<img src="${img('shots/final_pc2.png', 'png')}" style="width:100%;display:block;margin-top:8px"></div>
 <div style="display:flex;gap:12px;align-items:flex-start"><div>実画面（区間6 雷の峰）<img src="${img('shots/final_pc3.png', 'png')}" style="width:640px;display:block;margin-top:8px"></div>
 <div>スマホ<img src="${img('shots/final_phone.png', 'png')}" style="height:420px;display:block;margin-top:8px"></div></div></body>`

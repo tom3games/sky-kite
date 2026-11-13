@@ -41,12 +41,13 @@ bands.push({ y0: 32, y1: 37, x0: -60, x1: -12, wx: -2.5 })
 sec('煙の柱', 13, 40, '柱の外は風が弱く、凧は体を支えられない。煙の上昇気流に凧を入れた時だけ上がれる', '煙の中で巻いて上がる。柱の上で左へ振り、次の煙へ', 'Reel inside the smoke. At the top, swing left to the next column')
 zone('up', 19, 31, 12, 46, { v: 6.8, e: 2.5 })
 prop('fire', 27, 13.2); prop('smoke', 27, 13.6, { h: 18 })
-box(4, 14, 27, 1.6, 'wood')
+box(-3, 14, 28, 1.6, 'wood')
+zone('up', -12, 18, 30, 42, { v: 2.8, e: 3 })   // 柱の間にも弱い上昇気流（屋根で温まった空気）
 zone('up', 3, 13, 26, 44, { v: 6.8, e: 2 })
 prop('fire', 9, 27); prop('smoke', 9, 27.4, { h: 18 })
-box(-24, -7, 35, 1.8, 'rock')
-prop('flagpole', -21, 35)
-flag(-17, 35, 2)
+box(-24, -6, 32, 1.8, 'rock')
+prop('flagpole', -21, 32)
+flag(-11, 32, 2)
 
 // ---- 2 横風の竪穴: 左へ強い風。凧を真上の端に置き、巻いた時だけ真上へ上がる ----
 bands.push({ y0: 37, y1: 70, x0: -60, x1: -4, wx: -11 })
@@ -75,7 +76,8 @@ snags.push({ type: 'post', x: 21, y: 78, r: 0.25, what: 'mill', h: 12, pole: tru
 snags.push({ type: 'post', x: 15.5, y: 77, r: 0.6, what: 'tree', h: 6 })
 box(25, 36, 86, 2, 'rock')
 zone('up', 17, 25, 72, 96, { v: 5, e: 2 })
-zone('up', 26, 36, 90, 114, { v: 4.6, e: 2 })   // 右の尾根にぶつかった風が吹き上がる
+zone('up', 24, 32, 88, 112, { v: 6.5, e: 2 })   // 旗の棚の香炉の煙（区間4の上り口）
+prop('fire', 28, 86); prop('smoke', 28, 86.4, { h: 22 })   // 右の尾根にぶつかった風が吹き上がる
 zone('add', 25, 36, 86, 102, { wx: -6, e: 2 })   // 尾根の前では横風が弱まる
 prop('flagpole', 34.5, 86)
 flag(31, 86, 4)
@@ -83,15 +85,15 @@ flag(31, 86, 4)
 // ---- 4 僧院の屋根: 左へ風。建物の風下は無風で、凧を入れると落ちる ----
 bands.push({ y0: 104, y1: 134, wx: -9 })
 sec('僧院の屋根', 98, 128, '建物の陰（風下）に凧が入ると風が切れて落ちる。糸を出して屋根より上の風に当て続ける', '旗と粉雪が止まった所に凧を入れない。屋根より高く', 'Keep the kite out of the still air behind roofs. Fly it higher')
+// 僧院の建物は遊ぶ面の奥に建つ（体は手前を通れる。閉じ込められる所を作らない）。風下に無風の陰ができる
 function house(x0, x1, base, h, shade) {
-  const b = box(x0, x1, base + h, h, 'house')
+  prop('house', x0, base, { x1, h })
   zone('calm', x0 - shade, x0 + 0.5, base - 1, base + h + 1.2, { e: 1.2 })
-  return b
 }
-box(6, 22, 108, 1.6, 'rock')
-house(11, 19, 108, 6, 9)
-box(-16, -1, 117, 1.6, 'rock')
-house(-12, -4, 117, 6.5, 10)
+box(2, 22, 110, 1.6, 'rock')
+house(6, 13, 110, 6, 9)
+box(-20, -2, 119, 1.6, 'rock')
+house(-16, -9, 119, 6.5, 5)
 box(-34, -20, 127, 2, 'rock')
 prop('flagpole', -32.5, 127)
 flag(-26, 127, 5)

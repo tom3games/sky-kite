@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs'
 process.env.PORT = '5848'
 await import('../server.mjs')
 const br = await chromium.launch({ args: ['--use-gl=angle', '--ignore-gpu-blocklist'] })
-for (const [w, h, out, f, at] of [[1200, 630, 'og.png', 4, 33.5], [1280, 720, 'shots/final_pc.png', 4, 33.5], [1280, 720, 'shots/final_pc2.png', 0, 4], [1280, 720, 'shots/final_pc3.png', 6, 12], [390, 844, 'shots/final_phone.png', 4, 33.5]]) {
+for (const [w, h, out, f, at] of [[1200, 630, 'og.png', 4, 13], [1280, 720, 'shots/final_pc.png', 4, 13], [1280, 720, 'shots/final_pc2.png', 0, 4], [1280, 720, 'shots/final_pc3.png', 6, 12], [390, 844, 'shots/final_phone.png', 4, 13]]) {
   const rec = JSON.parse(readFileSync(import.meta.dirname + `/rec_${f}.json`))
   const p = await br.newPage({ viewport: { width: w, height: h }, locale: 'ja-JP' })
   await p.goto(`http://localhost:5848/${w < h ? '?touch' : ''}`)

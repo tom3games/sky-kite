@@ -369,6 +369,11 @@ export async function makeView(C, el, opt = {}) {
     const w = b.x1 - b.x0
     if (b.kind === 'rock' && w >= 9 && w < 30) bgSpots.push(b)
   }
+  // 区間4の僧院（遊ぶ面の奥。風下の陰の元）
+  for (const p of C.props.filter(p => p.type === 'house')) {
+    const zb = Math.min(cliffZ(p.x, p.y), cliffZ(p.x1, p.y)) - 0.6
+    building(p.x, p.x1, p.y, p.h, zb, -1.0, { cloth: true })
+  }
   // 背景の建物（遊ぶ面より奥。体は手前を通る）: 広い岩棚の奥に、山肌へ貼り付くように
   let bi = 0
   for (const b of bgSpots) {
@@ -393,8 +398,8 @@ export async function makeView(C, el, opt = {}) {
   // 吊り橋（背景。谷の上や棚と棚の間）
   for (const p of C.props.filter(p => p.type === 'bridge')) bridge(p.x, p.y + 6, p.x1, p.y1 + 6, -2.6)
   bridge(-22, 47, -6, 50, -3.6)
-  bridge(14, 116, 30, 122, -3.4)
-  bridge(-30, 180, -10, 184, -3.2)
+  bridge(-14, 151, 4, 155, -3.4)
+  bridge(-18, 186, 0, 190, -3.2)
 
   function tower(b) {
     const w = b.x1 - b.x0, h = b.y1 - b.y0, cx = (b.x0 + b.x1) / 2

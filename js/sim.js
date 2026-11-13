@@ -260,7 +260,12 @@ function sub(C, s, inp, h) {
     // 凧が落ちきった・岩に入った・糸が掛かった・雷
     const nkx = hx + Math.cos(s.phi) * s.L, nky = hy + Math.sin(s.phi) * s.L
     if (s.phi < -0.28 && s.phi > -PI + 0.28) down(s, A < K.stallA ? 'stall' : 'low')
-    else if (pointInSolid(C, nkx, nky)) down(s, 'rock')
+    else if (pointInSolid(C, nkx, nky)) {
+      // 凧が岩に当たったら、糸を岩の手前まで縮めて止まる（落ちはしない。糸が岩に掛かった時だけ落ちる）
+      let lo = 1, hi = s.L
+      for (let it = 0; it < 8; it++) { const m = (lo + hi) / 2; if (pointInSolid(C, hx + Math.cos(s.phi) * m, hy + Math.sin(s.phi) * m)) hi = m; else lo = m }
+      if (lo < 2) down(s, 'rock'); else { s.L = lo; s.ev.push('bump') }
+    }
     else { const sn = lineSnag(C, hx, hy, nkx, nky, s.t); if (sn) down(s, sn) }
     if (s.kite === 'flying') for (const z of C.storms) if (stormOn(z, s.t) && nkx > z.x0 && nkx < z.x1 && nky > z.y0 && nky < z.y1) { down(s, 'thunder'); s.stun = 0.9; break }
   } else if (s.kite === 'down') { s.downT += h }
