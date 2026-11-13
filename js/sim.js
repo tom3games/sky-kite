@@ -219,7 +219,8 @@ function sub(C, s, inp, h) {
     if (s.stun <= 0) {
       if (inp.reel > 0) { if (s.L > K.Lmin) { r = K.reelIn; s.L = Math.max(K.Lmin, s.L - r * h) } }
       // 離すと糸が出る。ただし足場で何も押していない時は出さない（休める）
-      else if (s.L < K.Lmax && !(s.ground && Math.abs(inp.steer || 0) < 0.3)) { r = -K.reelOut; s.L = Math.min(K.Lmax, s.L + K.reelOut * h) }
+      // 離すと糸が出る（足場で止まっている時は 12m まで）
+      else if (s.L < (s.ground && Math.abs(inp.steer || 0) < 0.3 ? Math.max(12, Math.min(s.L, K.Lmax)) : K.Lmax)) { r = -K.reelOut; s.L = Math.min(K.Lmax, s.L + K.reelOut * h) }
     }
     s.reel = r
     const kx = hx + ux * s.L, ky = hy + uy * s.L

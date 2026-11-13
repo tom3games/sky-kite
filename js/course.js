@@ -42,7 +42,7 @@ sec('煙の柱', 13, 40, '柱の外は風が弱く、凧は体を支えられな
 zone('up', 19, 31, 12, 46, { v: 6.8, e: 2.5 })
 prop('fire', 27, 13.2); prop('smoke', 27, 13.6, { h: 18 })
 box(-3, 14, 28, 1.6, 'wood')
-zone('up', -12, 18, 30, 42, { v: 2.8, e: 3 })   // 柱の間にも弱い上昇気流（屋根で温まった空気）
+zone('up', -12, 21, 26, 42, { v: 3.6, e: 3 })   // 柱の間にも弱い上昇気流（屋根で温まった空気）
 zone('up', 3, 13, 26, 44, { v: 6.8, e: 2 })
 prop('fire', 9, 27); prop('smoke', 9, 27.4, { h: 18 })
 box(-24, -6, 32, 1.8, 'rock')
@@ -72,7 +72,7 @@ snags.push({ type: 'post', x: 9.75, y: 83, r: 0.4, what: 'bell', h: 4 })   // �
 zone('up', -4, 5, 72, 100, { v: 5.8, e: 2 })        // 香炉の煙
 prop('fire', 1, 72); prop('smoke', 1, 72.4, { h: 20 })
 snags.push({ type: 'mill', x: 21, y: 84, R: 5.5, n: 3, w: 0.5, phase: 0.3 })
-snags.push({ type: 'post', x: 21, y: 78, r: 0.25, what: 'mill', h: 12, pole: true })   // 風車の柱（細い。体は抜けるが糸は掛かる）
+snags.push({ type: 'pole', x: 21, y: 78, r: 0.25, h: 12 })   // 風車の柱（見た目だけ。糸が掛かるのは羽根）
 snags.push({ type: 'post', x: 15.5, y: 77, r: 0.6, what: 'tree', h: 6 })
 box(25, 36, 86, 2, 'rock')
 zone('up', 17, 25, 72, 96, { v: 5, e: 2 })

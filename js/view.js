@@ -3,7 +3,7 @@
 import * as THREE from 'three'
 import { HDRLoader } from '../vendor/jsm/loaders/HDRLoader.js'
 import { GLTFLoader } from '../vendor/jsm/loaders/GLTFLoader.js'
-import { wind, stormOn, pulse, K, kitePos } from './sim.js?v=4'
+import { wind, stormOn, pulse, K, kitePos } from './sim.js?v=5'
 
 // B の絵から抜いた色（固定）
 export const PAL = {
@@ -412,6 +412,7 @@ export async function makeView(C, el, opt = {}) {
     put(new THREE.SphereGeometry(0.22, 8, 6), M.gold, cx, b.y1 + 1.75, zb + dep / 2)
   }
   for (const s of C.snags) {
+    if (s.type === 'pole') { put(cyl(s.r * 0.8, s.r * 1.2, s.h, 8), DW, s.x, s.y, 0.4); continue }
     if (s.type !== 'post') continue
     if (s.pole) { put(cyl(s.r * 0.8, s.r * 1.2, s.h, 8), DW, s.x, s.y, 0.4); continue }
     if (s.what === 'tree') {
