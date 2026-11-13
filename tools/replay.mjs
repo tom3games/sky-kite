@@ -9,7 +9,7 @@ const rec = JSON.parse(readFileSync(import.meta.dirname + `/rec_${flag}.json`))
 const br = await chromium.launch({ args: ['--use-gl=angle', '--ignore-gpu-blocklist'] })
 const p = await br.newPage({ viewport: { width: +w, height: +h }, locale: 'ja-JP' })
 const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type() === 'error' && errs.push(m.text()))
-await p.goto(`http://localhost:${process.env.PORT}/${+w < +h ? '?touch' : ''}`)
+await p.goto(`http://localhost:${process.env.PORT}/${+w < +h ? '?touch' : '?'}${process.env.Q || ''}`)
 await p.waitForFunction(() => window.__skyReady, null, { timeout: 20000 })
 await p.evaluate(([rec, f]) => { sky.start(); sky.replay(rec, +f) }, [rec, flag])
 let prev = 0

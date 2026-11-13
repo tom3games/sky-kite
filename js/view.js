@@ -3,7 +3,7 @@
 import * as THREE from 'three'
 import { HDRLoader } from '../vendor/jsm/loaders/HDRLoader.js'
 import { GLTFLoader } from '../vendor/jsm/loaders/GLTFLoader.js'
-import { wind, stormOn, pulse, K, kitePos } from './sim.js?v=5'
+import { wind, stormOn, pulse, K, kitePos } from './sim.js?v=6'
 
 // B の絵から抜いた色（固定）
 export const PAL = {
@@ -126,6 +126,12 @@ export async function makeView(C, el, opt = {}) {
     rock: snowy(T.rockD, T.rockN, T.rockR, { snow: 0.55, sat: 0.15, tint: 0xc0c5ce }),
     strata: snowy(T.cliffD, T.cliffN, T.cliffR, { snow: 0.72, sat: 0.2, tint: 0xf4efe8 }),
     band: new THREE.MeshStandardMaterial({ color: 0x6e2a22, roughness: 0.8 }),
+    plasterGrime: (() => { const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d'); g.fillStyle = '#efe9de'; g.fillRect(0, 0, 512, 512)
+      for (let i = 0; i < 900; i++) { g.fillStyle = `rgba(${120 + rnd() * 40},${110 + rnd() * 30},${90 + rnd() * 30},${rnd() * 0.08})`; g.fillRect(rnd() * 512, rnd() * 512, 2 + rnd() * 14, 2 + rnd() * 10) }
+      for (let i = 0; i < 70; i++) { const x = rnd() * 512, y0 = rnd() * 140, l = 80 + rnd() * 340, gr = g.createLinearGradient(0, y0, 0, y0 + l); gr.addColorStop(0, 'rgba(70,60,50,0.22)'); gr.addColorStop(1, 'rgba(70,60,50,0)'); g.fillStyle = gr; g.fillRect(x, y0, 2 + rnd() * 7, l) }
+      const gr2 = g.createLinearGradient(0, 380, 0, 512); gr2.addColorStop(0, 'rgba(80,70,60,0)'); gr2.addColorStop(1, 'rgba(80,70,60,0.35)'); g.fillStyle = gr2; g.fillRect(0, 380, 512, 132)
+      const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace
+      return new THREE.MeshStandardMaterial({ map: t, normalMap: T.plasN, roughness: 0.95, color: 0xcfc8bc }) })(),
     clothR: new THREE.MeshStandardMaterial({ color: 0x8e1d22, side: THREE.DoubleSide, roughness: 1 }),
     clothB: new THREE.MeshStandardMaterial({ color: 0x2e4f8e, side: THREE.DoubleSide, roughness: 1 }),
     clothY: new THREE.MeshStandardMaterial({ color: 0xb98a2e, side: THREE.DoubleSide, roughness: 1 }),
@@ -286,40 +292,69 @@ export async function makeView(C, el, opt = {}) {
   const WHITE = M.plaster, BAND = M.band, DW = M.darkWood
   function building(x0, x1, base, h, zb, zf, opt = {}) {
     const w = x1 - x0, cx = (x0 + x1) / 2, dep = zf - zb
-    // 石の基壇（山肌の色の石積み）
-    put(box(w + 0.3, 1.1, dep + 0.3, 2), M.block, cx, base + 0.55, zb + dep / 2)
-    // 壁（少し内へ傾く）
+    // 石の基壇（2段）
+    put(box(w + 0.6, 0.55, dep + 0.6, 2), M.block, cx, base + 0.27, zb + dep / 2)
+    put(box(w + 0.3, 0.6, dep + 0.3, 2), M.block, cx, base + 0.82, zb + dep / 2)
+    // 壁（上ほど内へ傾く・白い漆喰に雨だれの汚れ）
     const g = new THREE.BoxGeometry(w, h - 1.1, dep, 2, 2, 2); worldUV(g, w, h, dep, 3)
     { const p = g.attributes.position; for (let i = 0; i < p.count; i++) if (p.getY(i) > 0) { p.setX(i, p.getX(i) * 0.96); p.setZ(i, p.getZ(i) - 0.06) } g.computeVertexNormals() }
-    put(g, WHITE, cx, base + 1.1 + (h - 1.1) / 2, zb + dep / 2)
-    // 赤茶の帯（屋根の下）と梁の端
-    put(box(w * 0.98 + 0.12, 0.9, dep + 0.1), BAND, cx, base + h - 0.6, zb + dep / 2)
-    for (let x = x0 + 0.2; x < x1; x += 0.42) put(box(0.13, 0.13, 0.45), DW, x, base + h - 0.12, zf + 0.12)
-    // 屋根: 平ら・縁飾り（黒い縁と白い笠石）・雪
-    put(box(w + 0.7, 0.22, dep + 0.7), DW, cx, base + h + 0.08, zb + dep / 2)
-    put(box(w + 0.8, 0.18, dep + 0.8), WHITE, cx, base + h + 0.28, zb + dep / 2)
+    put(g, M.plasterGrime, cx, base + 1.1 + (h - 1.1) / 2, zb + dep / 2)
+    // 屋根の下: 赤茶の帯（枝を積んだ帯）、上下の白い線、梁の端を2段
+    put(box(w * 0.98 + 0.14, 0.95, dep + 0.12), BAND, cx, base + h - 0.62, zb + dep / 2)
+    put(box(w * 0.98 + 0.18, 0.08, dep + 0.16), WHITE, cx, base + h - 1.12, zb + dep / 2)
+    for (let x = x0 + 0.15; x < x1; x += 0.36) put(box(0.12, 0.12, 0.42), DW, x, base + h - 0.05, zf + 0.12)
+    for (let x = x0 + 0.33; x < x1; x += 0.36) put(box(0.1, 0.1, 0.3), DW, x, base + h - 0.24, zf + 0.06)
+    // 屋根: 平ら・黒い縁・白い笠石・角の小さな飾り・雪
+    put(box(w + 0.7, 0.22, dep + 0.7), DW, cx, base + h + 0.1, zb + dep / 2)
+    put(box(w + 0.8, 0.16, dep + 0.8), WHITE, cx, base + h + 0.3, zb + dep / 2)
+    for (const ex of [x0 - 0.3, x1 + 0.3]) { put(cyl(0.12, 0.16, 0.5, 6), BAND, ex, base + h + 0.6, zf + 0.2); put(new THREE.SphereGeometry(0.12, 6, 4), M.gold, ex, base + h + 0.92, zf + 0.2) }
     snowCap(x0 - 0.4, x1 + 0.4, base + h + 0.42, zb - 0.4, dep + 0.8)
-    // 窓（台形の黒い枠＋木の格子＋上の小屋根）
+    // 扉（1階の真ん中。濃い木の両開き・赤い枠・石の段）
+    if (w > 3.5 && !opt.noDoor) {
+      put(box(1.5, 2.2, 0.12), BAND, cx, base + 1.1 + 1.1, zf + 0.05)
+      put(box(1.2, 1.95, 0.1), DW, cx, base + 1.1 + 0.98, zf + 0.1)
+      put(box(0.04, 1.9, 0.12), M.window, cx, base + 1.1 + 0.98, zf + 0.12)
+      for (const dy of [0.5, 1.5]) put(box(1.2, 0.06, 0.14), M.gold, cx, base + 1.1 + dy, zf + 0.12)
+      put(box(1.9, 0.18, 0.5), M.block, cx, base + 1.1 + 0.02, zf + 0.25)
+      put(box(1.9, 0.22, 0.3), BAND, cx, base + 1.1 + 2.35, zf + 0.25)
+    }
+    // 窓（黒い台形の縁取り・奥まった窓・木の格子・下の窓台・上の小屋根）
     const rows = Math.max(1, Math.floor((h - 2.2) / 2.1))
-    for (let r = 0; r < rows; r++) for (let x = x0 + 1.1; x < x1 - 0.7; x += 2.0) {
-      const y = base + 1.9 + r * 2.1
-      const fr = new THREE.BoxGeometry(1.1, 1.15, 0.06); { const p = fr.attributes.position; for (let i = 0; i < p.count; i++) if (p.getY(i) > 0) p.setX(i, p.getX(i) * 0.8) }
-      put(fr, M.window, x, y, zf + 0.02)
-      put(box(0.86, 0.08, 0.1), DW, x, y + 0.42, zf + 0.06); put(box(0.86, 0.08, 0.1), DW, x, y - 0.42, zf + 0.06)
-      put(box(0.06, 0.86, 0.08), DW, x - 0.22, y, zf + 0.06); put(box(0.06, 0.86, 0.08), DW, x + 0.22, y, zf + 0.06); put(box(0.06, 0.86, 0.08), DW, x, y, zf + 0.06)
-      put(box(0.8, 0.05, 0.08), DW, x, y, zf + 0.06)
-      put(box(1.3, 0.12, 0.35), BAND, x, y + 0.66, zf + 0.15)
+    for (let r = 0; r < rows; r++) for (let x = x0 + 1.0; x < x1 - 0.6; x += 1.9) {
+      const y = base + 1.9 + r * 2.1 + (r === 0 && w > 3.5 ? 0.5 : 0)
+      if (r === 0 && w > 3.5 && Math.abs(x - cx) < 1.2) continue
+      const fr = new THREE.BoxGeometry(1.2, 1.25, 0.05); { const p = fr.attributes.position; for (let i = 0; i < p.count; i++) if (p.getY(i) > 0) p.setX(i, p.getX(i) * 0.78) }
+      put(fr, M.window, x, y - 0.05, zf + 0.02)
+      // 奥行き: 窓の四辺に厚い木の枠（手前へ0.2出す）
+      put(box(0.86, 0.1, 0.24), DW, x, y + 0.42, zf + 0.12); put(box(0.86, 0.12, 0.3), DW, x, y - 0.44, zf + 0.15)
+      put(box(0.1, 0.86, 0.24), DW, x - 0.43, y, zf + 0.12); put(box(0.1, 0.86, 0.24), DW, x + 0.43, y, zf + 0.12)
+      put(box(0.04, 0.8, 0.05), DW, x - 0.14, y, zf + 0.04); put(box(0.04, 0.8, 0.05), DW, x + 0.14, y, zf + 0.04); put(box(0.76, 0.04, 0.05), DW, x, y + 0.1, zf + 0.04)
+      put(box(1.25, 0.12, 0.38), BAND, x, y + 0.62, zf + 0.17)
+      for (let k = -2; k <= 2; k++) put(box(0.07, 0.07, 0.3), DW, x + k * 0.22, y + 0.53, zf + 0.15)
     }
-    // 木の回廊（張り出し・欄干・柱・上の小屋根）
+    // 横の面の窓（山肌から離れている所だけ）
+    for (const [sx, sgn] of [[x0, -1], [x1, 1]]) for (let r = 0; r < rows; r++) for (let z = zf - 0.9; z > zb + 0.8; z -= 1.9) {
+      const y = base + 1.9 + r * 2.1, px = sx + sgn * 0.02
+      put(box(0.05, 1.15, 0.95), M.window, px, y - 0.05, z)
+      put(box(0.24, 0.1, 0.86), DW, px + sgn * 0.1, y + 0.42, z); put(box(0.3, 0.12, 0.86), DW, px + sgn * 0.13, y - 0.44, z)
+      put(box(0.24, 0.86, 0.1), DW, px + sgn * 0.1, y, z - 0.43); put(box(0.24, 0.86, 0.1), DW, px + sgn * 0.1, y, z + 0.43)
+      put(box(0.38, 0.12, 1.25), BAND, px + sgn * 0.17, y + 0.62, z)
+    }
+    // 木の回廊（2階の高さ。床・柱・欄干・斜めの支え・上の片流れ屋根）。下からでも欄干と柱が見えるよう低めに
     if (opt.gallery !== false && w > 4) {
-      const gy = base + Math.min(h - 1.8, 2.6 + (rows > 1 ? 2.1 : 0)), gd = 1.1
-      put(box(w - 0.4, 0.14, gd, 1.5), M.wood, cx, gy, zf + gd / 2)
-      for (let x = x0 + 0.3; x < x1 - 0.2; x += 1.3) { put(box(0.12, 1.5, 0.12), DW, x, gy + 0.75, zf + gd - 0.08); put(cyl(0.05, 0.05, 1.4), DW, x, gy - 0.6, zf + gd * 0.5, 0.75) }
-      for (let x = x0 + 0.3; x < x1 - 0.2; x += 0.22) put(box(0.04, 0.62, 0.04), DW, x, gy + 0.38, zf + gd - 0.04)
-      put(box(w - 0.4, 0.07, 0.08), DW, cx, gy + 0.72, zf + gd - 0.04)
-      put(box(w - 0.2, 0.1, gd + 0.4), DW, cx, gy + 1.6, zf + gd / 2 + 0.1, -0.12)
+      const gy = base + Math.min(h - 2.2, 3.1), gd = 1.15
+      put(box(w - 0.4, 0.16, gd, 1.5), M.wood, cx, gy, zf + gd / 2)
+      for (let x = x0 + 0.3; x < x1 - 0.2; x += 1.25) {
+        put(box(0.16, 1.9, 0.16), DW, x, gy + 0.95, zf + gd - 0.1)
+        put(cyl(0.06, 0.06, 1.45), DW, x, gy - 0.55, zf + gd * 0.45, 0.8)
+        put(box(0.14, 0.18, gd), DW, x, gy - 0.16, zf + gd / 2)
+      }
+      for (let x = x0 + 0.3; x < x1 - 0.2; x += 0.2) put(box(0.05, 0.7, 0.05), BAND, x, gy + 0.43, zf + gd - 0.06)
+      put(box(w - 0.4, 0.09, 0.12), DW, cx, gy + 0.82, zf + gd - 0.06)
+      put(box(w - 0.4, 0.08, 0.1), DW, cx, gy + 0.14, zf + gd - 0.06)
+      put(box(w - 0.1, 0.1, gd + 0.5), DW, cx, gy + 1.95, zf + gd / 2 + 0.15, -0.2)
+      put(box(w - 0.1, 0.06, 0.08), BAND, cx, gy + 1.85, zf + gd + 0.4)
     }
-    // 干した布
     if (opt.cloth) {
       const cy0 = base + h - 1.6
       put(cyl(0.015, 0.015, w + 1.6), M.rope, cx, cy0 + 0.6, zf + 1.6, 0, 0, Math.PI / 2, false)
@@ -575,11 +610,28 @@ export async function makeView(C, el, opt = {}) {
     const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 2); t.colorSpace = THREE.SRGBColorSpace; return t })()
   const furMat = new THREE.MeshStandardMaterial({ map: furTex, bumpMap: furTex, bumpScale: 2, roughness: 1, side: THREE.DoubleSide })
   const outfit = new THREE.Group(); scene.add(outfit)
-  { // 外套（肩から膝まで。裾がふくらむ）
-    const pts = []; for (let i = 0; i <= 12; i++) { const t = i / 12; pts.push(new THREE.Vector2(0.2 + t * 0.2 + Math.sin(t * 9) * 0.012, -t * 0.95)) }
-    const coat = new THREE.Mesh(new THREE.LatheGeometry(pts, 18), furMat); coat.castShadow = true; coat.name = 'coat'; outfit.add(coat)
-    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.085, 8, 16), furMat); collar.rotation.x = Math.PI / 2; collar.position.y = 0.02; collar.castShadow = true; outfit.add(collar)
-    const hood = new THREE.Mesh(new THREE.SphereGeometry(0.17, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), furMat); hood.position.set(0, 0.26, -0.02); hood.scale.set(1, 1.05, 1.05); hood.castShadow = true; outfit.add(hood)
+  { // 外套: 肩から膝下まで。背中側が長く、裾は毛皮のぎざぎざ。前は開いている（腕と脚が見える）
+    const g = new THREE.CylinderGeometry(0.2, 0.34, 1.0, 20, 8, true, Math.PI * 0.18, Math.PI * 1.64)
+    const p = g.attributes.position
+    for (let i = 0; i < p.count; i++) {
+      let x = p.getX(i), y = p.getY(i), z = p.getZ(i)
+      const t = (0.5 - y) // 0=肩 1=裾
+      const back = Math.max(0, -z / 0.34)          // 背中側ほど長い
+      const a = Math.atan2(z, x)
+      const rag = t > 0.95 ? (Math.sin(a * 13) * 0.5 + 0.5) * 0.07 + vnoise(a * 4, 1, 2) * 0.06 : 0
+      y -= back * t * 0.18 + rag
+      const bulge = 1 + Math.sin(t * Math.PI) * 0.08 + (vnoise(a * 3, y * 4, 5) - 0.5) * 0.12 * t
+      p.setXYZ(i, x * bulge, y - 0.45, z * bulge * 0.9 - 0.02)
+    }
+    g.computeVertexNormals()
+    const coat = new THREE.Mesh(g, furMat); coat.castShadow = true; coat.name = 'coat'; outfit.add(coat)
+    // 毛皮の襟（もこもこ）
+    const cg = new THREE.TorusGeometry(0.17, 0.08, 10, 22)
+    { const q = cg.attributes.position; for (let i = 0; i < q.count; i++) { const k = 1 + (vnoise(q.getX(i) * 9, q.getY(i) * 9, q.getZ(i) * 9) - 0.5) * 0.5; q.setXYZ(i, q.getX(i) * k, q.getY(i) * k, q.getZ(i) * k) } cg.computeVertexNormals() }
+    const collar = new THREE.Mesh(cg, furMat); collar.rotation.x = Math.PI / 2; collar.position.y = 0.03; collar.castShadow = true; outfit.add(collar)
+    // フード（後ろに垂れた形）
+    const hg = new THREE.SphereGeometry(0.19, 14, 10, Math.PI * 0.15, Math.PI * 1.7, 0, Math.PI * 0.62)
+    const hood = new THREE.Mesh(hg, furMat); hood.position.set(0, 0.24, -0.03); hood.scale.set(1.05, 1.08, 1.12); hood.rotation.x = -0.15; hood.castShadow = true; outfit.add(hood)
   }
   const scarfMat = new THREE.MeshStandardMaterial({ color: 0x9b1620, roughness: 0.9, side: THREE.DoubleSide })
   const scarf = (() => { const n = 10, pts = Array.from({ length: n }, () => new THREE.Vector3()), prev = pts.map(v => v.clone()), geo = new THREE.BufferGeometry(), pos = new Float32Array(n * 6), idx = []
@@ -589,6 +641,7 @@ export async function makeView(C, el, opt = {}) {
     return { pts, prev, pos, geo, init: false } })()
   if (rig) rig.traverse(o => { if (o.isMesh && /Feet|Legs/.test(o.name)) for (const m of [].concat(o.material)) { if (/Feet/.test(o.name)) m.color.setHex(0x2a1c14); } })
   const neckW = new THREE.Vector3(), rigQ = new THREE.Quaternion()
+  const tgtV = new THREE.Vector3(), pU = new THREE.Vector3(), pL = new THREE.Vector3(), dirV = new THREE.Vector3(), tmpV = new THREE.Vector3(), qW = new THREE.Quaternion(), qB = new THREE.Quaternion(), qP = new THREE.Quaternion()
   function play(name, fade = 0.25) { const a = acts[name]; if (!a || curAct === a) return; a.reset().fadeIn(fade).play(); if (curAct) curAct.fadeOut(fade); curAct = a }
 
   // ---- 凧（深紅の菱凧・木の骨・2本の長い尾） ----
@@ -670,8 +723,9 @@ export async function makeView(C, el, opt = {}) {
     camX += (fx - camX) * k; camY += (fy - camY) * k
     const tf = Math.tan(cam.fov * Math.PI / 360)
     const needH = (Math.abs(kyv - s.y) + 7) / 2 / tf, needW = (Math.abs(kxv - s.x) + (aspect < 1 ? 9 : 7)) / 2 / (tf * aspect)
-    const want = Math.max(aspect < 1 ? 12 : 10, needH * 0.95, needW * (aspect < 1 ? 1.15 : 0.95))
+    const want = Math.max(aspect < 1 ? 9.5 : 10, needH * 0.9, needW * (aspect < 1 ? 1.0 : 0.95))
     camD += (want - camD) * (1 - Math.exp(-dt * 1.5))
+    if (opt.closeup) { camD = 4.2; camX = s.x; camY = s.y - 1.2 }
     const side = -Math.max(-1, Math.min(1, camX / 14))   // 右端にいる時は左から、左端では右から
     camSide += (side - camSide) * (1 - Math.exp(-dt * 0.8))
     const up = aspect < 1 ? 2.2 : 1.0
@@ -693,13 +747,25 @@ export async function makeView(C, el, opt = {}) {
       mixer.update(dt)
       const B = rig.userData.bones
       if (flying && B['UpperArm.L']) {
-        const hang = s.ground ? 0.5 : 1
+        // 糸を握る: 上腕を凧の方へ向ける（空中では両腕を上げてぶら下がる、足場では半分）
+        rig.updateMatrixWorld(true)
+        const hang = s.ground ? 0.55 : 1
+        tgtV.set(kfx - s.x, kfy - s.y, 0.4).normalize()
         for (const side of ['L', 'R']) {
-          const ua = B['UpperArm.' + side]; if (ua) ua.rotation.x = ua.rotation.x * (1 - hang) - (Math.PI - 0.3) * hang
-          const la = B['LowerArm.' + side]; if (la) la.rotation.x = la.rotation.x * (1 - hang) - 0.2 * hang
+          const ua = B['UpperArm.' + side], la = B['LowerArm.' + side]; if (!ua || !la) continue
+          ua.getWorldPosition(pU); la.getWorldPosition(pL)
+          dirV.subVectors(pL, pU).normalize()
+          const want = tmpV.copy(tgtV).add(new THREE.Vector3(side === 'L' ? -0.12 : 0.12, 0, 0)).normalize()
+          qW.setFromUnitVectors(dirV, dirV.clone().lerp(want, hang).normalize())
+          ua.getWorldQuaternion(qB); ua.parent.getWorldQuaternion(qP)
+          ua.quaternion.copy(qP.invert().multiply(qW.multiply(qB)))
+          la.rotation.set(0, 0, 0)
+          ua.updateMatrixWorld(true)
         }
         if (!s.ground) for (const side of ['L', 'R']) { const ul = B['UpperLeg.' + side]; if (ul) ul.rotation.x = Math.sin(t * 2 + (side === 'L' ? 0 : 1.6)) * 0.2 + 0.12 }
       }
+      // 外套の裾は風と動きの反対へなびく
+      { const c = outfit.getObjectByName('coat'); if (c) { wind(C, s.x, s.y, t, tmpW); c.rotation.z = Math.max(-0.5, Math.min(0.5, (-(tmpW[0] - s.vx) * 0.03))); c.rotation.x = s.ground ? 0 : 0.15 } }
       body.rotation.z = s.ground ? 0 : s.beta * 0.9
       const nb = B['Neck'] || B['Chest']
       if (nb) { nb.getWorldPosition(neckW); rig.getWorldQuaternion(rigQ); outfit.position.copy(neckW); outfit.quaternion.copy(rigQ); outfit.position.y -= 0.04 }

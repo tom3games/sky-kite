@@ -60,11 +60,11 @@ export function wind(C, x, y, t, out = [0, 0]) {
       wx += b.wx * w * gx; wy += (b.wy || 0) * w
     }
   }
-  let calm = 1
+  let calm = 1, ay2 = 0   // ay2: 建物の陰でも残る弱い上昇気流（陰の後に足す）
   for (const z of C.zones) {
     const w = rectW(z, x, y); if (!w) continue
     switch (z.type) {
-      case 'up': wy += z.v * w; if (z.vx) wx += z.vx * w; break
+      case 'up': if (z.after) { ay2 += z.v * w } else { wy += z.v * w; if (z.vx) wx += z.vx * w } break
       case 'add': wx += z.wx * w; wy += (z.wy || 0) * w; break
       case 'calm': calm *= 1 - w * (z.k ?? 1); break
       case 'gust': { const p = pulse(t, z.period, z.phase, z.dur); wx += z.wx * w * p; wy += (z.wy || 0) * w * p; break }
@@ -77,7 +77,7 @@ export function wind(C, x, y, t, out = [0, 0]) {
   // 岩山の外は吹き下ろし（外へ出た凧は落ちる）
   const ex = Math.abs(x) - (C.edge ?? 37)
   if (ex > -2) { const w = sstep(-2, 3, ex); wx *= 1 - w; wy = wy * (1 - w) - 11 * w }
-  out[0] = wx * calm; out[1] = wy * calm
+  out[0] = wx * calm; out[1] = wy * calm + ay2
   return out
 }
 

@@ -39,12 +39,12 @@ bands.push({ y0: 18, y1: 43, x0: -4, x1: 15, wx: -2.5 })
 bands.push({ y0: 18, y1: 37, x0: -12, x1: -4, wx: -2.5 })
 bands.push({ y0: 32, y1: 37, x0: -60, x1: -12, wx: -2.5 })
 sec('煙の柱', 13, 40, '柱の外は風が弱く、凧は体を支えられない。煙の上昇気流に凧を入れた時だけ上がれる', '煙の中で巻いて上がる。柱の上で左へ振り、次の煙へ', 'Reel inside the smoke. At the top, swing left to the next column')
-zone('up', 19, 31, 12, 46, { v: 6.8, e: 2.5 })
-prop('fire', 27, 13.2); prop('smoke', 27, 13.6, { h: 18 })
-box(-3, 14, 28, 1.6, 'wood')
+zone('up', 15, 28, 12, 44, { v: 6.8, e: 2.5 })
+prop('fire', 22, 13.2); prop('smoke', 22, 13.6, { h: 18 })
+box(3, 15, 28, 1.6, 'wood')
 zone('up', -12, 21, 26, 42, { v: 3.6, e: 3 })   // 柱の間にも弱い上昇気流（屋根で温まった空気）
-zone('up', 3, 13, 26, 44, { v: 6.8, e: 2 })
-prop('fire', 9, 27); prop('smoke', 9, 27.4, { h: 18 })
+zone('up', 1, 14, 28, 44, { v: 6.8, e: 2 })
+prop('fire', 9, 28); prop('smoke', 9, 28.4, { h: 16 })
 box(-24, -6, 32, 1.8, 'rock')
 prop('flagpole', -21, 32)
 flag(-11, 32, 2)
@@ -67,15 +67,15 @@ flag(-29, 71.5, 3)
 // ---- 3 鐘楼と風車: 右へ風。鐘楼の針と回る風車の羽根の間に糸を通す ----
 bands.push({ y0: 70, y1: 104, wx: 8 })
 sec('鐘楼と風車', 71.5, 100, '糸が鐘楼や羽根に掛かると凧が落ちる。どこで揚げ、どの高さに凧を置くかで糸の通り道を選ぶ', '凧を羽根より高く。羽根が過ぎた隙に巻く', 'Keep the kite above the sails. Reel when a sail has passed')
-box(8, 11.5, 81, 9, 'tower')                     // 鐘楼
-snags.push({ type: 'post', x: 9.75, y: 83, r: 0.4, what: 'bell', h: 4 })   // 鐘楼の針
-zone('up', -4, 5, 72, 100, { v: 5.8, e: 2 })        // 香炉の煙
+box(8, 11.5, 78, 6, 'tower')                     // 鐘楼
+snags.push({ type: 'post', x: 9.75, y: 80, r: 0.35, what: 'bell', h: 4 })   // 鐘楼の針
+zone('up', -5, 6, 72, 100, { v: 6.2, e: 2 })        // 香炉の煙
 prop('fire', 1, 72); prop('smoke', 1, 72.4, { h: 20 })
-snags.push({ type: 'mill', x: 21, y: 84, R: 5.5, n: 3, w: 0.5, phase: 0.3 })
-snags.push({ type: 'pole', x: 21, y: 78, r: 0.25, h: 12 })   // 風車の柱（見た目だけ。糸が掛かるのは羽根）
-snags.push({ type: 'post', x: 15.5, y: 77, r: 0.6, what: 'tree', h: 6 })
+snags.push({ type: 'mill', x: 16, y: 88, R: 4, n: 3, w: 0.35, phase: 0.3 })
+snags.push({ type: 'pole', x: 16, y: 80, r: 0.25, h: 16 })   // 風車の柱（見た目だけ。糸が掛かるのは羽根）
+snags.push({ type: 'post', x: 33, y: 75, r: 0.6, what: 'tree', h: 6 })
 box(25, 36, 86, 2, 'rock')
-zone('up', 17, 25, 72, 96, { v: 5, e: 2 })
+zone('up', 20, 26, 72, 96, { v: 5.5, e: 2 })
 zone('up', 24, 32, 88, 112, { v: 6.5, e: 2 })   // 旗の棚の香炉の煙（区間4の上り口）
 prop('fire', 28, 86); prop('smoke', 28, 86.4, { h: 22 })   // 右の尾根にぶつかった風が吹き上がる
 zone('add', 25, 36, 86, 102, { wx: -6, e: 2 })   // 尾根の前では横風が弱まる
@@ -93,9 +93,11 @@ function house(x0, x1, base, h, shade) {
 box(4, 24, 110, 1.6, 'rock')
 zone('up', 13, 21, 110, 128, { v: 6, e: 2 }); prop('fire', 17, 110); prop('smoke', 17, 110.4, { h: 16 })
 house(-5, 2, 110, 6, 6)
-box(-16, -1, 119, 1.6, 'rock')
+zone('up', -12, 3, 108, 119, { v: 2.8, e: 2, after: true })
+box(-21, -1, 119, 1.6, 'rock')
 house(-23, -16, 119, 6.5, 4)
-box(-34, -20, 127, 2, 'rock')
+zone('up', -28, -14, 117, 130, { v: 2.8, e: 2, after: true })   // 陰の中でも弱く吹き上がる
+box(-34, -19, 127, 2, 'rock')
 prop('flagpole', -32.5, 127)
 flag(-26, 127, 5)
 
@@ -117,11 +119,12 @@ bands.push({ y0: 166, y1: 203, wx: 8 })
 sec('雷の峰', 164, 194, '雷雲の中の凧に雷が落ちる。光り始めたら糸を巻いて凧を雲の下へ、過ぎたら出して強い風へ', '雲が明滅したら巻いて凧を下げる。光が去ったら離す', 'When the cloud flickers, reel the kite down. Let out after the flash')
 storms.push({ x0: -16, x1: 6, y0: 180, y1: 190, period: 8, phase: 2, dur: 0.8 })
 storms.push({ x0: 10, x1: 30, y0: 192, y1: 202, period: 8, phase: 6, dur: 0.8 })
-box(-9, 6, 174, 1.4, 'rock')
-zone('up', -8, 3, 166, 196, { v: 6.5, e: 2 }); prop('fire', -1, 174); prop('smoke', -1, 174.4, { h: 16 })
+zone('up', -21, -12, 162, 181, { v: 6.3, e: 2 }); prop('fire', -17, 164); prop('smoke', -17, 164.4, { h: 14 })
+box(-8, 6, 174, 1.4, 'rock')
+zone('up', -6, 4, 174, 198, { v: 6.5, e: 2 }); prop('fire', -1, 174); prop('smoke', -1, 174.4, { h: 16 })
 box(9, 21, 183, 1.4, 'rock')
-zone('up', 10, 20, 176, 206, { v: 6.5, e: 2 }); prop('fire', 14, 183); prop('smoke', 14, 183.4, { h: 16 })
-box(17, 36, 193, 2, 'rock')
+zone('up', 10, 20, 183, 206, { v: 6.5, e: 2 }); prop('fire', 14, 183); prop('smoke', 14, 183.4, { h: 16 })
+box(21.5, 36, 193, 2, 'rock')
 prop('flagpole', 34.5, 193)
 flag(30, 193, 7)
 

@@ -1,9 +1,9 @@
-import { COURSE as C } from './course.js?v=5'
-import { newState, step, respawn, DT, K, angDiff } from './sim.js?v=5'
-import { makeView } from './view.js?v=5'
-import { makeTutorial } from './tutorial.js?v=5'
-import { Snd } from './sfx.js?v=5'
-import { wind } from './sim.js?v=5'
+import { COURSE as C } from './course.js?v=6'
+import { newState, step, respawn, DT, K, angDiff } from './sim.js?v=6'
+import { makeView } from './view.js?v=6'
+import { makeTutorial } from './tutorial.js?v=6'
+import { Snd } from './sfx.js?v=6'
+import { wind } from './sim.js?v=6'
 
 const $ = id => document.getElementById(id)
 const qs = new URLSearchParams(location.search)
@@ -180,7 +180,7 @@ function frame(now) {
 }
 async function boot() {
   try {
-    view = await makeView(C, $('view'), { low: touch, keep: qs.has('keep'), progress: f => { $('ldFill').style.width = Math.round(f * 100) + '%' } })
+    view = await makeView(C, $('view'), { low: touch, keep: qs.has('keep'), closeup: qs.has('closeup'), progress: f => { $('ldFill').style.width = Math.round(f * 100) + '%' } })
   } catch (e) { $('ldTxt').textContent = 'このブラウザでは3Dを表示できませんでした'; throw e }
   bindCanvas(view.renderer.domElement)
   $('loading').hidden = true; $('title').hidden = false

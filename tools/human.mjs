@@ -60,7 +60,7 @@ for (let trial = 0; trial < N; trial++) {
     }
     if (pend && f >= pend.at) { cur = pend.a; pend = null }
     step(C, s, cur)
-    if (process.env.TRACE && f % 60 === 0) console.error(trial, (f/60).toFixed(0), s.x.toFixed(1), s.y.toFixed(1), 'k', k, '/', ref.length, s.kite)
+    if (process.env.TRACE && f % 60 === 0) console.error(trial, (f/60).toFixed(0), s.x.toFixed(1), s.y.toFixed(1), 'k', k, '/', ref.length, s.kite, s.why)
     if (s.flag > sec) { ok = true; break }
   }
   out.push(ok ? +s.t.toFixed(0) : 'x')
